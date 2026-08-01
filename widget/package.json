@@ -1,0 +1,12 @@
+{
+  "name": "ai-support-widget",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
