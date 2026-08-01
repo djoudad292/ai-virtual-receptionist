@@ -85,6 +85,34 @@ npm run build
 - Backend API: http://localhost:4000
 - WebSocket: ws://localhost:4000
 
+## Deployment
+
+The backend is a long-running NestJS + Socket.io server, so it needs a container host (not a serverless platform). Recommended split:
+
+| Piece   | Host | Notes |
+|---------|------|-------|
+| Frontend (Next.js) | **Vercel** | Auto-detected; set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL` to your backend URL at build time |
+| Backend (NestJS) | **Render / Railway / Fly.io** | Web service; enable WebSockets; set `DATABASE_URL`, `OPENROUTER_API_KEY`, `JWT_SECRET`, `JWT_REFRESH_SECRET` |
+| Database | **Neon / Supabase** (external) | pgvector enabled |
+| Widget | served from the backend | the backend serves `/widget.js` from `backend/public/` |
+
+### Backend (Render example)
+1. Create a **Web Service**, connect the repo.
+2. Build command: `cd backend && npm install && npm run build`
+3. Start command: `cd backend && node dist/main.js`
+4. Env vars: `DATABASE_URL`, `OPENROUTER_API_KEY`, `JWT_SECRET`, `JWT_REFRESH_SECRET` (optional `OPENAI_API_KEY`, `OPENROUTER_MODEL`)
+5. If the widget ever changes, rebuild it and refresh `backend/public/widget.js`:
+   ```bash
+   cd widget && npm run build && cp dist/widget.js ../backend/public/widget.js
+   ```
+
+### Frontend (Vercel)
+1. Import the repo on Vercel (framework: Next.js, detected automatically).
+2. Env vars at build time:
+   - `NEXT_PUBLIC_API_URL=https://your-backend.onrender.com`
+   - `NEXT_PUBLIC_WS_URL=https://your-backend.onrender.com`
+   - `NEXT_PUBLIC_WIDGET_URL=https://your-backend.onrender.com`
+
 ## Usage
 
 1. **Register a company** → you get an admin dashboard with seeded departments (Sales / Support / Billing).

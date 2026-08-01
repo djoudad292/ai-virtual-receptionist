@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/exception.filter';
 import { DatabaseService } from './common/database.service';
@@ -8,8 +11,17 @@ import { StoreService } from './common/store.service';
 import { AIService } from './ai/ai.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const logger = new Logger('Bootstrap');
+
+  // Serve the embeddable chat widget: GET /widget.js
+  const publicDir = join(__dirname, '..', 'public');
+  if (existsSync(publicDir)) {
+    app.useStaticAssets(publicDir, { index: false });
+    logger.log(`Serving static assets from ${publicDir}`);
+  } else {
+    logger.warn(`public dir not found at ${publicDir}; /widget.js will 404`);
+  }
 
   app.enableCors({
     origin: '*',
