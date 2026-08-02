@@ -12,7 +12,12 @@ interface Message {
   createdAt: string
 }
 
-export default function ChatWidgetPreview() {
+interface ChatWidgetPreviewProps {
+  companyId?: string
+  title?: string
+}
+
+export default function ChatWidgetPreview({ companyId = 'preview', title = 'Live Preview' }: ChatWidgetPreviewProps) {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -44,7 +49,7 @@ export default function ChatWidgetPreview() {
       setConnected(true)
       apiFetch('/conversations', {
         method: 'POST',
-        body: JSON.stringify({ companyId: 'preview' }),
+        body: JSON.stringify({ companyId }),
       })
         .then((data: any) => {
           const id = data.id || data.conversationId
@@ -97,7 +102,7 @@ export default function ChatWidgetPreview() {
       setConnected(false)
       setConversationId(null)
     }
-  }, [open])
+  }, [open, companyId])
 
   const sendMessage = () => {
     const text = input.trim()
@@ -121,7 +126,7 @@ export default function ChatWidgetPreview() {
           <div className="flex items-center justify-between rounded-t-2xl border-b border-border bg-secondary px-4 py-3">
             <div className="flex items-center gap-2">
               <div className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-sm font-medium text-foreground">Live Preview</span>
+              <span className="text-sm font-medium text-foreground">{title}</span>
             </div>
             <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
               <X className="h-5 w-5" />

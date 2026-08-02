@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { apiFetch } from '@/lib/api'
 import Sidebar from '@/components/sidebar'
 import MobileSidebar from '@/components/mobile-sidebar'
+import ChatWidgetPreview from '@/components/chat-widget-preview'
 import { MessageSquare, BookOpen, Users, CalendarClock, BarChart3, Menu, Loader2, CheckCircle2, Circle, LifeBuoy } from 'lucide-react'
 
 interface Conversation {
@@ -30,7 +31,7 @@ interface Summary {
 }
 
 export default function DashboardPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -265,6 +266,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <ChatWidgetPreview companyId={user?.companyId || 'preview'} title="Test your AI" />
     </div>
   )
 }
