@@ -13,6 +13,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  LifeBuoy,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/leads', label: 'Leads', icon: Users },
   { href: '/appointments', label: 'Appointments', icon: CalendarClock },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/guide', label: 'Guide', icon: LifeBuoy },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 

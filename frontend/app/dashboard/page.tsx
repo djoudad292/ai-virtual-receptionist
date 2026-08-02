@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import { apiFetch } from '@/lib/api'
 import Sidebar from '@/components/sidebar'
 import MobileSidebar from '@/components/mobile-sidebar'
-import { MessageSquare, BookOpen, Users, CalendarClock, BarChart3, Menu, Loader2 } from 'lucide-react'
+import { MessageSquare, BookOpen, Users, CalendarClock, BarChart3, Menu, Loader2, CheckCircle2, Circle, LifeBuoy } from 'lucide-react'
 
 interface Conversation {
   id: string
@@ -34,6 +34,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [docCount, setDocCount] = useState(0)
   const [summary, setSummary] = useState<Summary>({ total: 0, active: 0, aiHandled: 0, humanHandled: 0, unresolved: 0, leads: 0, appointments: 0 })
   const [loading, setLoading] = useState(true)
 
@@ -50,6 +51,9 @@ export default function DashboardPage() {
         .catch(() => {})
       apiFetch('/analytics/summary')
         .then((data) => setSummary(data))
+        .catch(() => {})
+      apiFetch('/knowledge-base')
+        .then((data) => setDocCount((Array.isArray(data) ? data : data.documents || []).length))
         .catch(() => {})
         .finally(() => setLoading(false))
     }
@@ -74,6 +78,15 @@ export default function DashboardPage() {
 
   const recentConversations = conversations.slice(0, 5)
 
+  const setupSteps = [
+    { label: 'Add knowledge base documents', done: docCount > 0, href: '/knowledge-base', hint: 'Give the AI the facts it needs to answer' },
+    { label: 'Embed the chat widget on your site', done: summary.total > 0, href: '/settings', hint: 'Copy the code from Settings' },
+    { label: 'Chat with the AI to test it', done: summary.total > 0, href: '/inbox', hint: 'Open a conversation to see how it responds' },
+    { label: 'Review captured leads', done: summary.leads > 0, href: '/leads', hint: 'Contacts the AI captured from visitors' },
+  ]
+  const completedSteps = setupSteps.filter((s) => s.done).length
+  const allDone = completedSteps === setupSteps.length
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -88,6 +101,47 @@ export default function DashboardPage() {
         </header>
 
         <div className="p-6">
+          {!allDone && (
+            <div className="mb-8 rounded-xl border border-border bg-card p-5">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Getting Started</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {completedSteps} of {setupSteps.length} steps done &mdash; follow these to get your receptionist running
+                  </p>
+                </div>
+                <Link
+                  href="/guide"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                >
+                  <LifeBuoy className="h-3.5 w-3.5" />
+                  Full guide
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {setupSteps.map((step) => (
+                  <Link
+                    key={step.label}
+                    href={step.href}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-secondary"
+                  >
+                    {step.done ? (
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-green-400" />
+                    ) : (
+                      <Circle className="h-5 w-5 shrink-0 text-muted-foreground/50" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`text-sm ${step.done ? 'text-muted-foreground line-through' : 'text-foreground font-medium'}`}>
+                        {step.label}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{step.hint}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {stats.map((stat) => (
               <div key={stat.label} className="rounded-xl border border-border bg-card p-5">
@@ -192,6 +246,18 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-sm font-medium text-foreground">View Analytics</p>
                     <p className="text-xs text-muted-foreground">Track performance metrics</p>
+                  </div>
+                </Link>
+                <Link
+                  href="/guide"
+                  className="flex items-center gap-3 rounded-xl border border-border bg-secondary p-4 transition-colors hover:border-primary/50"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-500/10 text-slate-400">
+                    <LifeBuoy className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Read the Guide</p>
+                    <p className="text-xs text-muted-foreground">How to use every feature</p>
                   </div>
                 </Link>
               </div>

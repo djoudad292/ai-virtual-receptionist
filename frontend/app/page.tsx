@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3 } from 'lucide-react'
+import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3, FileText, Code2, MessageCircle } from 'lucide-react'
 import ChatWidgetPreview from '@/components/chat-widget-preview'
 
 const features = [
@@ -132,6 +132,69 @@ export default function LandingPage() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        </section>
+
+        <section id="how-it-works" className="py-20">
+          <div className="mx-auto max-w-7xl px-6">
+            <h2 className="text-center text-3xl font-bold text-foreground">How it works</h2>
+            <p className="mx-auto mt-4 max-w-xl text-center text-muted-foreground">
+              From sign-up to first conversation in three steps.
+            </p>
+            <div className="mt-14 grid gap-6 md:grid-cols-3">
+              <div className="rounded-xl border border-border bg-card p-6">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-foreground">1. Add your knowledge</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload your FAQ, prices, policies or product docs. The AI studies them so it can answer accurately.
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-6">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Code2 className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-foreground">2. Embed the widget</h3>
+                <p className="text-sm text-muted-foreground">
+                  Copy one line of code from Settings and paste it into your website. A chat bubble appears instantly.
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-6">
+                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <MessageCircle className="h-5 w-5" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-foreground">3. Let the AI work</h3>
+                <p className="text-sm text-muted-foreground">
+                  It answers questions, captures leads, books appointments and routes conversations. You just check the inbox.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="pb-20">
+          <div className="mx-auto max-w-4xl px-6">
+            <div className="rounded-2xl border border-border bg-card p-8 text-center">
+              <h2 className="text-2xl font-bold text-foreground">Ready to try it?</h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
+                Create a free account, add your knowledge base, and test the live widget in minutes. No credit card needed.
+              </p>
+              <div className="mt-6 flex items-center justify-center gap-4">
+                <Link
+                  href="/register"
+                  className="rounded-xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Get Started Free
+                </Link>
+                <button
+                  onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="rounded-xl border border-border px-8 py-3 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
+                >
+                  See How It Works
+                </button>
+              </div>
             </div>
           </div>
         </section>
