@@ -1,13 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch } from '@/lib/api'
-import Sidebar from '@/components/sidebar'
-import MobileSidebar from '@/components/mobile-sidebar'
 import { useToast } from '@/components/toast'
-import { Menu, Loader2, CalendarClock, Plus, X } from 'lucide-react'
+import { Loader2, CalendarClock, Plus, X } from 'lucide-react'
 
 interface Appointment {
   id: string
@@ -20,20 +17,14 @@ interface Appointment {
   status: string
 }
 
-export default function AppointmentsPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const router = useRouter()
+export default function AppointmentsView() {
+  const { isAuthenticated } = useAuth()
   const { addToast } = useToast()
-  const [mobileOpen, setMobileOpen] = useState(false)
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ customerName: '', customerEmail: '', title: '', startTime: '', durationMinutes: '30' })
   const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) router.push('/login')
-  }, [authLoading, isAuthenticated, router])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -79,16 +70,6 @@ export default function AppointmentsPage() {
     }
   }
 
-  if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) return null
-
   const statusColor: Record<string, string> = {
     requested: 'bg-amber-500/10 text-amber-400',
     confirmed: 'bg-green-500/10 text-green-400',
@@ -97,87 +78,81 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <div className="flex-1 md:ml-64">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setMobileOpen(true)} className="text-muted-foreground md:hidden">
-              <Menu className="h-5 w-5" />
-            </button>
-            <h1 className="text-lg font-semibold text-foreground">Appointments</h1>
-          </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> New Appointment
-          </button>
-        </header>
-
-        <div className="p-6">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : appointments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16">
-              <CalendarClock className="h-10 w-10 text-muted-foreground/50 mb-3" />
-              <p className="text-sm text-muted-foreground">No appointments yet</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
-                The AI receptionist books appointments automatically when visitors ask to schedule a meeting.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {appointments.map((appt) => (
-                <div key={appt.id} className="rounded-xl border border-border bg-card p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <CalendarClock className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{appt.title || 'Meeting'}</p>
-                        <p className="text-xs text-muted-foreground">{appt.customerName || 'Anonymous'}</p>
-                      </div>
-                    </div>
-                    <select
-                      value={appt.status}
-                      onChange={(e) => updateStatus(appt.id, e.target.value)}
-                      className="rounded-lg border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      <option value="requested">requested</option>
-                      <option value="confirmed">confirmed</option>
-                      <option value="completed">completed</option>
-                      <option value="cancelled">cancelled</option>
-                    </select>
-                  </div>
-
-                  <div className="mt-4 space-y-1.5 text-sm">
-                    <p className="font-medium text-foreground">
-                      {new Date(appt.startTime).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(appt.startTime).toLocaleDateString(undefined, { weekday: 'long' })}
-                      {' · '}
-                      {Math.round((new Date(appt.endTime).getTime() - new Date(appt.startTime).getTime()) / 60000)} min
-                    </p>
-                    {appt.customerEmail && (
-                      <p className="text-xs text-muted-foreground mt-2">{appt.customerEmail}</p>
-                    )}
-                  </div>
-
-                  <span className={`mt-4 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[appt.status] || 'bg-muted text-muted-foreground'}`}>
-                    {appt.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+    <div className="p-6">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Appointments</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Meetings booked by the AI in chat, plus any you create manually.
+          </p>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-4 w-4" /> New Appointment
+        </button>
       </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : appointments.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16">
+          <CalendarClock className="h-10 w-10 text-muted-foreground/50 mb-3" />
+          <p className="text-sm text-muted-foreground">No appointments yet</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">
+            Ask the AI to "book me tomorrow at 14:00" in chat, or create one manually.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {appointments.map((appt) => (
+            <div key={appt.id} className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <CalendarClock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{appt.title || 'Meeting'}</p>
+                    <p className="text-xs text-muted-foreground">{appt.customerName || 'Anonymous'}</p>
+                  </div>
+                </div>
+                <select
+                  value={appt.status}
+                  onChange={(e) => updateStatus(appt.id, e.target.value)}
+                  className="rounded-lg border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="requested">requested</option>
+                  <option value="confirmed">confirmed</option>
+                  <option value="completed">completed</option>
+                  <option value="cancelled">cancelled</option>
+                </select>
+              </div>
+
+              <div className="mt-4 space-y-1.5 text-sm">
+                <p className="font-medium text-foreground">
+                  {new Date(appt.startTime).toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(appt.startTime).toLocaleDateString(undefined, { weekday: 'long' })}
+                  {' · '}
+                  {Math.round((new Date(appt.endTime).getTime() - new Date(appt.startTime).getTime()) / 60000)} min
+                </p>
+                {appt.customerEmail && (
+                  <p className="text-xs text-muted-foreground mt-2">{appt.customerEmail}</p>
+                )}
+              </div>
+
+              <span className={`mt-4 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[appt.status] || 'bg-muted text-muted-foreground'}`}>
+                {appt.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

@@ -1,34 +1,16 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import {
-  LayoutDashboard,
-  MessageSquare,
-  BookOpen,
-  Users,
-  CalendarClock,
-  BarChart3,
-  Settings,
-  LogOut,
-  LifeBuoy,
-} from 'lucide-react'
+import { LogOut, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { TABS, type Tab } from '@/lib/workspace'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/inbox', label: 'Inbox', icon: MessageSquare },
-  { href: '/knowledge-base', label: 'Knowledge Base', icon: BookOpen },
-  { href: '/leads', label: 'Leads', icon: Users },
-  { href: '/appointments', label: 'Appointments', icon: CalendarClock },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/guide', label: 'Guide', icon: LifeBuoy },
-  { href: '/settings', label: 'Settings', icon: Settings },
-]
+interface SidebarProps {
+  active: Tab
+  onNavigate: (tab: Tab) => void
+}
 
-export default function Sidebar() {
-  const pathname = usePathname()
+export default function Sidebar({ active, onNavigate }: SidebarProps) {
   const { user, logout } = useAuth()
 
   return (
@@ -41,15 +23,15 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => {
+        {TABS.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href
+          const isActive = active === item.id
           return (
-            <Link
-              key={item.href}
-              href={item.href}
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left',
                 isActive
                   ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
@@ -57,7 +39,7 @@ export default function Sidebar() {
             >
               <Icon className="h-4 w-4" />
               {item.label}
-            </Link>
+            </button>
           )
         })}
       </nav>

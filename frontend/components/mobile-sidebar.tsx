@@ -1,41 +1,19 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
-import {
-  LayoutDashboard,
-  MessageSquare,
-  BookOpen,
-  Users,
-  CalendarClock,
-  BarChart3,
-  Settings,
-  LogOut,
-  LifeBuoy,
-  X,
-} from 'lucide-react'
+import { LogOut, X, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/inbox', label: 'Inbox', icon: MessageSquare },
-  { href: '/knowledge-base', label: 'Knowledge Base', icon: BookOpen },
-  { href: '/leads', label: 'Leads', icon: Users },
-  { href: '/appointments', label: 'Appointments', icon: CalendarClock },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/guide', label: 'Guide', icon: LifeBuoy },
-  { href: '/settings', label: 'Settings', icon: Settings },
-]
+import { TABS, type Tab } from '@/lib/workspace'
 
 interface MobileSidebarProps {
   open: boolean
   onClose: () => void
+  active: Tab
+  onNavigate: (tab: Tab) => void
 }
 
-export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
-  const pathname = usePathname()
+export default function MobileSidebar({ open, onClose, active, onNavigate }: MobileSidebarProps) {
   const { user, logout } = useAuth()
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -54,10 +32,6 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
       document.body.style.overflow = ''
     }
   }, [open, onClose])
-
-  useEffect(() => {
-    onClose()
-  }, [pathname, onClose])
 
   return (
     <div
@@ -78,7 +52,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <MessageSquare className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="text-sm font-semibold text-foreground">AI Support</span>
+            <span className="text-sm font-semibold text-foreground">Receptionist</span>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="h-5 w-5" />
@@ -86,15 +60,18 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
         </div>
 
         <nav className="flex-1 space-y-1 p-4">
-          {navItems.map((item) => {
+          {TABS.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = active === item.id
             return (
-              <Link
-                key={item.href}
-                href={item.href}
+              <button
+                key={item.id}
+                onClick={() => {
+                  onNavigate(item.id)
+                  onClose()
+                }}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left',
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
@@ -102,7 +79,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               >
                 <Icon className="h-4 w-4" />
                 {item.label}
-              </Link>
+              </button>
             )
           })}
         </nav>
