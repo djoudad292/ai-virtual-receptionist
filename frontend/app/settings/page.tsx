@@ -118,7 +118,7 @@ export default function SettingsPage() {
   }
 
   const embedCode = user?.companyId
-    ? `<script src="${process.env.NEXT_PUBLIC_WIDGET_URL || 'http://localhost:4000'}/widget.js" data-api-url="${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}" data-ws-url="${process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000'}" data-company-id="${user.companyId}"></script>`
+    ? `<script src="${process.env.NEXT_PUBLIC_WIDGET_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}/widget.js" data-api-url="${process.env.NEXT_PUBLIC_API_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}" data-ws-url="${process.env.NEXT_PUBLIC_WS_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}" data-company-id="${user.companyId}"></script>`
     : ''
 
   const copyEmbed = () => {

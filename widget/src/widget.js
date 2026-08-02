@@ -4,8 +4,8 @@
   var script = document.currentScript;
   if (!script) return;
 
-  var apiUrl = script.getAttribute('data-api-url') || 'http://localhost:4000';
-  var wsUrl = script.getAttribute('data-ws-url') || 'http://localhost:4000';
+  var apiUrl = script.getAttribute('data-api-url') || 'https://ai-receptionist-backend-h14q.onrender.com';
+  var wsUrl = script.getAttribute('data-ws-url') || 'https://ai-receptionist-backend-h14q.onrender.com';
   var companyId = script.getAttribute('data-company-id');
   var primaryColor = script.getAttribute('data-primary-color') || '#3b82f6';
   var position = script.getAttribute('data-position') || 'right';
