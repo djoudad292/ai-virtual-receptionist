@@ -98,8 +98,8 @@ The backend is a long-running NestJS + Socket.io server, so it needs a container
 
 ### Backend (Render example)
 1. Create a **Web Service**, connect the repo.
-2. Build command: `cd backend && npm install && npm run build`
-3. Start command: `cd backend && node dist/main.js`
+2. Build command: `npm install && npm run build` (root directory set to `backend`)
+3. Start command: `node dist/main` (set root directory to `backend`)
 4. Env vars: `DATABASE_URL`, `OPENROUTER_API_KEY`, `JWT_SECRET`, `JWT_REFRESH_SECRET` (optional `OPENAI_API_KEY`, `OPENROUTER_MODEL`)
 5. If the widget ever changes, rebuild it and refresh `backend/public/widget.js`:
    ```bash

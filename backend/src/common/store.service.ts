@@ -120,7 +120,7 @@ export type StoredDepartment = {
 export class StoreService {
   constructor(private db: DatabaseService) {}
 
-  // ---------------- Users ----------------
+  // Users
   async createUser(data: Omit<StoredUser, 'createdAt' | 'updatedAt'>): Promise<StoredUser> {
     const rows = await this.db.query<StoredUser>(
       `INSERT INTO users (id, email, password_hash, name, role, company_id, created_at, updated_at)
@@ -171,11 +171,7 @@ export class StoreService {
     );
   }
 
-  async deleteUser(id: string): Promise<void> {
-    await this.db.execute(`DELETE FROM users WHERE id = $1`, [id]);
-  }
-
-  // ---------------- Companies ----------------
+  // Companies
   async createCompany(data: Omit<StoredCompany, 'createdAt' | 'updatedAt'>): Promise<StoredCompany> {
     const rows = await this.db.query<StoredCompany>(
       `INSERT INTO companies (id, name, slug, plan, settings, created_at, updated_at)
@@ -209,7 +205,7 @@ export class StoreService {
     );
   }
 
-  // ---------------- Conversations ----------------
+  // Conversations
   async createConversation(data: Omit<StoredConversation, 'createdAt' | 'updatedAt' | 'lastMessage' | 'handledBy'>): Promise<StoredConversation> {
     const rows = await this.db.query<StoredConversation>(
       `INSERT INTO conversations (id, company_id, title, status, department, assigned_agent_id, lead_id, metadata, created_at, updated_at)
@@ -285,12 +281,7 @@ export class StoreService {
     );
   }
 
-  async countConversations(companyId: string): Promise<number> {
-    const row = await this.db.queryOne(`SELECT count(*)::int AS count FROM conversations WHERE company_id = $1`, [companyId]);
-    return row?.count ?? 0;
-  }
-
-  // ---------------- Messages ----------------
+  // Messages
   async createMessage(data: Omit<StoredMessage, 'createdAt'>): Promise<StoredMessage> {
     const rows = await this.db.query<StoredMessage>(
       `INSERT INTO messages (id, conversation_id, sender_id, sender_type, content, metadata, created_at)
@@ -310,15 +301,7 @@ export class StoreService {
     );
   }
 
-  async getLastMessage(conversationId: string): Promise<StoredMessage | null> {
-    return this.db.queryOne<StoredMessage>(
-      `SELECT id, conversation_id AS "conversationId", sender_id AS "senderId", sender_type AS "senderType", content, metadata, created_at AS "createdAt"
-       FROM messages WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 1`,
-      [conversationId],
-    );
-  }
-
-  // ---------------- Agents ----------------
+  // Agents
   async createAgent(data: Omit<StoredAgent, 'createdAt' | 'updatedAt'>): Promise<StoredAgent> {
     const rows = await this.db.query<StoredAgent>(
       `INSERT INTO agents (id, user_id, company_id, is_online, created_at, updated_at)
@@ -357,7 +340,7 @@ export class StoreService {
     );
   }
 
-  // ---------------- Knowledge Base ----------------
+  // Knowledge Base
   async createDocument(data: Omit<StoredDocument, 'createdAt' | 'updatedAt'>): Promise<StoredDocument> {
     const rows = await this.db.query<StoredDocument>(
       `INSERT INTO knowledge_documents (id, company_id, title, content, chunks, created_at, updated_at)
@@ -434,7 +417,7 @@ export class StoreService {
     );
   }
 
-  // ---------------- Leads ----------------
+  // Leads
   async createLead(data: Omit<StoredLead, 'createdAt' | 'updatedAt'>): Promise<StoredLead> {
     const rows = await this.db.query<StoredLead>(
       `INSERT INTO leads (id, company_id, conversation_id, name, email, phone, message, source, status, department, created_at, updated_at)
@@ -491,7 +474,7 @@ export class StoreService {
     return row?.count ?? 0;
   }
 
-  // ---------------- Appointments ----------------
+  // Appointments
   async createAppointment(data: Omit<StoredAppointment, 'createdAt' | 'updatedAt'>): Promise<StoredAppointment> {
     const rows = await this.db.query<StoredAppointment>(
       `INSERT INTO appointments (id, company_id, conversation_id, lead_id, customer_name, customer_email, title, notes, start_time, end_time, status, created_at, updated_at)
@@ -540,7 +523,7 @@ export class StoreService {
     return row?.count ?? 0;
   }
 
-  // ---------------- Departments ----------------
+  // Departments
   async listDepartments(companyId: string): Promise<StoredDepartment[]> {
     return this.db.query<StoredDepartment>(
       `SELECT id, company_id AS "companyId", name, description, keywords, email, created_at AS "createdAt"

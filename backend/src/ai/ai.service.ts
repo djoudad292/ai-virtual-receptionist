@@ -24,9 +24,7 @@ export class AIService {
 
   constructor(private store: StoreService) {}
 
-  // ------------------------------------------------------------------
-  // Embeddings (OpenAI, falling back to deterministic local hashing)
-  // ------------------------------------------------------------------
+  // Embeddings: OpenAI with a local hashing fallback
   async generateEmbedding(text: string): Promise<number[]> {
     if (process.env.OPENAI_API_KEY) {
       try {
@@ -88,9 +86,7 @@ export class AIService {
     return vector.map((v) => v / mag);
   }
 
-  // ------------------------------------------------------------------
   // RAG search
-  // ------------------------------------------------------------------
   async searchKnowledgeBase(companyId: string, query: string, limit = 10) {
     const totalChunks = await this.store.countChunks(companyId);
     if (totalChunks === 0) return [];
@@ -125,9 +121,7 @@ export class AIService {
     }
   }
 
-  // ------------------------------------------------------------------
   // LLM chat (OpenRouter)
-  // ------------------------------------------------------------------
   private async chat(messages: { role: string; content: string }[]): Promise<string | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return null;
@@ -163,9 +157,7 @@ export class AIService {
     }
   }
 
-  // ------------------------------------------------------------------
   // Receptionist orchestration
-  // ------------------------------------------------------------------
   async generateResponse(
     companyId: string,
     userMessage: string,
@@ -246,9 +238,7 @@ export class AIService {
     return result;
   }
 
-  // ------------------------------------------------------------------
   // Persist side effects (leads, appointments, routing)
-  // ------------------------------------------------------------------
   private async persistSideEffects(companyId: string, conversationId: string, result: ReceptionistResult) {
     const conversation = await this.store.findConversationById(conversationId);
     if (!conversation) return;
@@ -300,7 +290,7 @@ export class AIService {
             companyId,
             conversationId,
             leadId: lead?.id || null,
-            customerName: lead?.name || leadInfoName(result.lead) || null,
+            customerName: lead?.name || result.lead?.name || null,
             customerEmail: lead?.email || null,
             title: appt.title || 'Scheduled meeting',
             notes: null,
@@ -316,9 +306,7 @@ export class AIService {
     }
   }
 
-  // ------------------------------------------------------------------
   // Prompt + parsing helpers
-  // ------------------------------------------------------------------
   private buildSystemPrompt(company: any, departments: any[], context: string): string {
     const deptList = departments.map((d) => d.name).join(', ') || 'Sales, Support, Billing';
     const today = new Date();
@@ -458,8 +446,4 @@ function hashString(str: string): number {
     h = ((h << 5) + h + str.charCodeAt(i)) | 0;
   }
   return h;
-}
-
-function leadInfoName(lead: { name?: string | null } | null | undefined): string | null {
-  return lead?.name || null;
 }

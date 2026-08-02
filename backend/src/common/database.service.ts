@@ -167,20 +167,4 @@ export class DatabaseService {
   async execute(text: string, params?: any[]): Promise<void> {
     await this.pool.query(text, params);
   }
-
-  async withTransaction<T>(fn: (query: DatabaseService) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const tx: any = { ...this, pool: client };
-      const result = await fn(tx);
-      await client.query('COMMIT');
-      return result;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
 }

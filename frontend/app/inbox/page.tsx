@@ -150,7 +150,7 @@ export default function InboxPage() {
       <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
       <div className="flex flex-1 flex-col md:ml-64">
         <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-1.5 text-center text-[10px] text-amber-400">
-          Demo &middot; In-memory &middot; Built by{' '}
+          Demo &middot; Built by{' '}
           <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-semibold underline">djaouad frih</a>
         </div>
         <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-4">

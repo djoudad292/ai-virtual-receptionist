@@ -33,8 +33,4 @@ export class AgentsService {
   setOnlineStatus(agentId: string, isOnline: boolean) {
     return this.store.updateAgent(agentId, { isOnline });
   }
-
-  getAgentByUserId(userId: string) {
-    return this.store.findAgentByUserId(userId);
-  }
 }

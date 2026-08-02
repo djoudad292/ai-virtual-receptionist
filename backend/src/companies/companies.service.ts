@@ -9,10 +9,6 @@ export class CompaniesService {
     return this.store.findCompanyById(id);
   }
 
-  getCompanyBySlug(slug: string) {
-    return this.store.findCompanyBySlug(slug);
-  }
-
   updateSettings(id: string, settings: Record<string, any>) {
     return this.store.updateCompanySettings(id, settings);
   }
