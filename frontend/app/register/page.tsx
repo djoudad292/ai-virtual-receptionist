@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
+import { warmUpBackend } from '@/lib/api'
 import { MessageSquare, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/toast'
 
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [waking, setWaking] = useState(false)
   const { register } = useAuth()
   const { addToast } = useToast()
   const router = useRouter()
@@ -20,13 +22,17 @@ export default function RegisterPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setWaking(true)
     try {
+      await warmUpBackend()
+      setWaking(false)
       await register(name, email, password, companyName)
       addToast('Account created successfully', 'success')
       router.push('/dashboard')
     } catch (err: any) {
       addToast(err.message || 'Failed to create account', 'error')
     } finally {
+      setWaking(false)
       setLoading(false)
     }
   }
@@ -109,7 +115,12 @@ export default function RegisterPage() {
             disabled={loading}
             className="flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Account'}
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                {waking ? 'Waking up the assistant…' : 'Creating account…'}
+              </>
+            ) : 'Create Account'}
           </button>
         </form>
 

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
+import { warmUpBackend } from '@/lib/api'
 import { MessageSquare, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/toast'
 
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [waking, setWaking] = useState(false)
   const { login } = useAuth()
   const { addToast } = useToast()
   const router = useRouter()
@@ -18,13 +20,17 @@ export default function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setWaking(true)
     try {
+      await warmUpBackend()
+      setWaking(false)
       await login(email, password)
       addToast('Signed in successfully', 'success')
       router.push('/dashboard')
     } catch (err: any) {
       addToast(err.message || 'Failed to sign in', 'error')
     } finally {
+      setWaking(false)
       setLoading(false)
     }
   }
@@ -76,7 +82,12 @@ export default function LoginPage() {
             disabled={loading}
             className="flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                {waking ? 'Waking up the assistant…' : 'Signing in…'}
+              </>
+            ) : 'Sign In'}
           </button>
         </form>
 

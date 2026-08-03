@@ -1,6 +1,41 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-receptionist-backend-h14q.onrender.com'
 
-export async function apiFetch(path: string, options?: RequestInit) {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// Wakes a sleeping free-tier backend before real requests are made.
+// The first /api/health call boots the instance; we poll until it answers.
+export async function warmUpBackend(maxAttempts = 40, delayMs = 2000) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 30000)
+      const res = await fetch(`${API_URL}/api/health`, { signal: controller.signal })
+      clearTimeout(timer)
+      if (res.ok) return true
+    } catch {
+      // still booting (connection refused / timeout) — keep waiting
+    }
+    await sleep(delayMs)
+  }
+  return false
+}
+
+export async function apiFetch(path: string, options?: RequestInit, { retries = 2, retryDelayMs = 2500 } = {}) {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await rawFetch(path, options)
+    } catch (err) {
+      lastError = err
+      const isAuth = err instanceof Error && (err.message.includes('401') || err.message.includes('Unauthorized'))
+      if (isAuth) throw err // don't retry auth failures
+      if (attempt < retries) await sleep(retryDelayMs)
+    }
+  }
+  throw lastError
+}
+
+async function rawFetch(path: string, options?: RequestInit) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -12,7 +47,9 @@ export async function apiFetch(path: string, options?: RequestInit) {
   })
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Request failed' }))
-    throw new Error(error.message || error.error || 'Request failed')
+    const err = new Error(error.message || error.error || 'Request failed')
+    ;(err as any).status = res.status
+    throw err
   }
   return res.json()
 }

@@ -366,91 +366,93 @@
     };
     document.head.appendChild(el);
   }
-
   /* ---- WebSocket ---- */
   function connect() {
     loadSocketIO(function () {
-      if (socket) {
-        socket.disconnect();
-      }
-      socket = io(wsUrl, {
-        transports: ['websocket', 'polling'],
-        timeout: 15000,
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 2000,
-      });
-
-      socket.on('connect', function () {
-        showBanner('Reconnected!', 'reconnect');
-        setTimeout(hideBanner, 2000);
-        setConnected(true);
-        socket.emit('joinConversation', { conversationId: conversationId, companyId: companyId });
-      });
-      socket.on('disconnect', function () {
-        setConnected(false);
-        showBanner('Connection lost. Reconnecting…', 'lost');
-      });
-
-      socket.on('newMessage', function (data) {
-        var content = typeof data.content === 'string' ? data.content : '';
-        var msg = {
-          content: content,
-          senderType: data.senderType || 'assistant',
-          timestamp: data.timestamp || timeStr(),
-        };
-        messages.push(msg);
-        addMessage(msg);
-        if (!isOpen) {
-          unreadCount++;
-          badgeEl.textContent = unreadCount;
-          badgeEl.classList.add('show');
-          bubble.classList.add('pulse');
+      warmUp(function () {
+        if (socket) {
+          socket.disconnect();
         }
-      });
+        socket = io(wsUrl, {
+          transports: ['websocket', 'polling'],
+          timeout: 30000,
+          reconnection: true,
+          reconnectionAttempts: Infinity,
+          reconnectionDelay: 2000,
+          reconnectionDelayMax: 10000,
+        });
 
-      socket.on('aiThinking', function (data) {
-        showTyping(!!data.isThinking);
-      });
+        socket.on('connect', function () {
+          hideBanner();
+          setConnected(true);
+          socket.emit('joinConversation', { conversationId: conversationId, companyId: companyId });
+        });
 
-      socket.on('aiResponse', function (data) {
-        showTyping(false);
-        var content = '';
-        if (typeof data.content === 'string') content = data.content;
-        else if (data.message && typeof data.message.content === 'string') content = data.message.content;
-        else if (typeof data.message === 'string') content = data.message;
-        var msg = {
-          content: content,
-          senderType: 'bot',
-          timestamp: data.timestamp || timeStr(),
-        };
-        messages.push(msg);
-        addMessage(msg);
-        if (data.appointment && data.appointment.date) {
-          notify('Appointment requested: ' + (data.appointment.date || '') + (data.appointment.time ? ' at ' + data.appointment.time : '') + '. We will confirm shortly.');
-        } else if (data.lead && (data.lead.email || data.lead.phone)) {
-          notify('Thank you! Your details have been saved. A team member will get back to you soon.');
-        }
-        if (data.department) {
-          notify('This conversation has been routed to our ' + data.department + ' team.');
-        }
-      });
+        socket.on('disconnect', function () {
+          setConnected(false);
+          showBanner('Reconnecting…', 'reconnect');
+        });
 
-      socket.on('typing', function (data) {
-        showTyping(data.isTyping || data.typing || false);
-      });
+        socket.on('newMessage', function (data) {
+          var content = typeof data.content === 'string' ? data.content : '';
+          var msg = {
+            content: content,
+            senderType: data.senderType || 'assistant',
+            timestamp: data.timestamp || timeStr(),
+          };
+          messages.push(msg);
+          addMessage(msg);
+          if (!isOpen) {
+            unreadCount++;
+            badgeEl.textContent = unreadCount;
+            badgeEl.classList.add('show');
+            bubble.classList.add('pulse');
+          }
+        });
 
-      socket.on('agentJoin', function (data) {
-        notify('An agent has joined the conversation.');
-      });
+        socket.on('aiThinking', function (data) {
+          showTyping(!!data.isThinking);
+        });
 
-      socket.on('takeover', function (data) {
-        notify('An agent has taken over the conversation.');
-      });
+        socket.on('aiResponse', function (data) {
+          showTyping(false);
+          var content = '';
+          if (typeof data.content === 'string') content = data.content;
+          else if (data.message && typeof data.message.content === 'string') content = data.message.content;
+          else if (typeof data.message === 'string') content = data.message;
+          var msg = {
+            content: content,
+            senderType: 'bot',
+            timestamp: data.timestamp || timeStr(),
+          };
+          messages.push(msg);
+          addMessage(msg);
+          if (data.appointment && data.appointment.date) {
+            notify('Appointment requested: ' + (data.appointment.date || '') + (data.appointment.time ? ' at ' + data.appointment.time : '') + '. We will confirm shortly.');
+          } else if (data.lead && (data.lead.email || data.lead.phone)) {
+            notify('Thank you! Your details have been saved. A team member will get back to you soon.');
+          }
+          if (data.department) {
+            notify('This conversation has been routed to our ' + data.department + ' team.');
+          }
+        });
 
-      socket.on('connect_error', function (err) {
-        setConnected(false);
-        showBanner('Connection error. Retrying…', 'lost');
+        socket.on('typing', function (data) {
+          showTyping(data.isTyping || data.typing || false);
+        });
+
+        socket.on('agentJoin', function (data) {
+          notify('An agent has joined the conversation.');
+        });
+
+        socket.on('takeover', function (data) {
+          notify('An agent has taken over the conversation.');
+        });
+
+        socket.on('connect_error', function (err) {
+          setConnected(false);
+          showBanner('Reconnecting…', 'reconnect');
+        });
       });
     });
   }
@@ -473,6 +475,34 @@
       if (cb) cb(new Error('Network error'));
     };
     xhr.send(JSON.stringify({ companyId: companyId }));
+  }
+
+  /* ---- warm-up: wakes a sleeping backend before the socket connects ---- */
+  var wakingUp = false;
+
+  function warmUp(cb) {
+    wakingUp = true;
+    setConnected(false);
+    var txt = panel.querySelector('.ai-status-txt');
+    txt.textContent = 'Waking up…';
+    showBanner('Waking up the assistant…', 'reconnect');
+
+    var xhr = new XMLHttpRequest();
+    xhr.timeout = 90000;
+    xhr.open('GET', apiUrl + '/api/health', true);
+    xhr.onload = function () {
+      wakingUp = false;
+      if (cb) cb();
+    };
+    xhr.onerror = function () {
+      wakingUp = false;
+      if (cb) cb();
+    };
+    xhr.ontimeout = function () {
+      wakingUp = false;
+      if (cb) cb();
+    };
+    xhr.send();
   }
 
   /* ---- send message ---- */
