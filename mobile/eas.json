@@ -21,9 +21,6 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
-      },
-      "ios": {
-        "appleTeamId": ""
       }
     }
   },
