@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
 
 @Injectable()
@@ -23,7 +23,19 @@ export class LeadsService {
     });
   }
 
-  updateStatus(id: string, status: string) {
+  async assertLeadInCompany(id: string, companyId: string) {
+    const lead = await this.store.findLeadById(id);
+    if (!lead) {
+      throw new NotFoundException('Lead not found');
+    }
+    if (lead.companyId !== companyId) {
+      throw new ForbiddenException('You do not have access to this lead');
+    }
+    return lead;
+  }
+
+  async updateStatus(id: string, status: string, companyId: string) {
+    await this.assertLeadInCompany(id, companyId);
     return this.store.updateLead(id, { status });
   }
 }

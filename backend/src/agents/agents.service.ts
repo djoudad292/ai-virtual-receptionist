@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
 
 @Injectable()
@@ -30,7 +30,14 @@ export class AgentsService {
     return withUsers;
   }
 
-  setOnlineStatus(agentId: string, isOnline: boolean) {
+  async setOnlineStatus(agentId: string, isOnline: boolean, companyId: string) {
+    const agent = await this.store.findAgentById(agentId);
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+    if (agent.companyId !== companyId) {
+      throw new ForbiddenException('You do not have access to this agent');
+    }
     return this.store.updateAgent(agentId, { isOnline });
   }
 }

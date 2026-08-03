@@ -436,6 +436,14 @@ export class StoreService {
     );
   }
 
+  async findLeadById(id: string): Promise<StoredLead | null> {
+    return this.db.queryOne<StoredLead>(
+      `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", name, email, phone, message, source, status, department, created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM leads WHERE id = $1`,
+      [id],
+    );
+  }
+
   async findLeadsByCompany(companyId: string): Promise<StoredLead[]> {
     return this.db.query<StoredLead>(
       `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", name, email, phone, message, source, status, department, created_at AS "createdAt", updated_at AS "updatedAt"
@@ -490,6 +498,14 @@ export class StoreService {
       `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", lead_id AS "leadId", customer_name AS "customerName", customer_email AS "customerEmail", title, notes, start_time AS "startTime", end_time AS "endTime", status, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM appointments WHERE company_id = $1 ORDER BY start_time ASC`,
       [companyId],
+    );
+  }
+
+  async findAppointmentById(id: string): Promise<StoredAppointment | null> {
+    return this.db.queryOne<StoredAppointment>(
+      `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", lead_id AS "leadId", customer_name AS "customerName", customer_email AS "customerEmail", title, notes, start_time AS "startTime", end_time AS "endTime", status, created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM appointments WHERE id = $1`,
+      [id],
     );
   }
 
@@ -560,5 +576,21 @@ export class StoreService {
 
   async deleteDepartment(id: string): Promise<void> {
     await this.db.execute(`DELETE FROM departments WHERE id = $1`, [id]);
+  }
+
+  async findDepartmentById(id: string): Promise<StoredDepartment | null> {
+    return this.db.queryOne<StoredDepartment>(
+      `SELECT id, company_id AS "companyId", name, description, keywords, email, created_at AS "createdAt"
+       FROM departments WHERE id = $1`,
+      [id],
+    );
+  }
+
+  async findAgentById(id: string): Promise<StoredAgent | null> {
+    return this.db.queryOne<StoredAgent>(
+      `SELECT id, user_id AS "userId", company_id AS "companyId", is_online AS "isOnline", created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM agents WHERE id = $1`,
+      [id],
+    );
   }
 }

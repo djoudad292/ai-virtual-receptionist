@@ -4,6 +4,7 @@ import * as bcrypt from 'bcryptjs';
 import { StoreService } from '../common/store.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { JWT_REFRESH_SECRET } from '../common/config';
 
 @Injectable()
 export class AuthService {
@@ -89,7 +90,7 @@ export class AuthService {
   async refreshToken(token: string) {
     try {
       const payload = this.jwtService.verify(token, {
-        secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key-change-in-production',
+        secret: JWT_REFRESH_SECRET(),
       });
 
       const user = await this.store.findUserById(payload.sub);
@@ -113,7 +114,7 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
     const refreshToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET || 'refresh-secret-key-change-in-production',
+      secret: JWT_REFRESH_SECRET(),
       expiresIn: '7d',
     });
 

@@ -55,7 +55,7 @@ export default function ChatWidgetPreview({ companyId = 'preview', title = 'Live
           const id = data.id || data.conversationId
           if (!id) { setError('Failed to create conversation'); return }
           setConversationId(id)
-          s.emit('joinConversation', { conversationId: id })
+          s.emit('joinConversation', { conversationId: id, companyId })
           setMessages([
             {
               id: 'welcome',
@@ -109,7 +109,7 @@ export default function ChatWidgetPreview({ companyId = 'preview', title = 'Live
     if (!text || !socket || !conversationId) return
     setInput('')
 
-    socket.emit('sendMessage', { conversationId, content: text })
+    socket.emit('sendMessage', { conversationId, content: text, companyId })
   }
 
   return (

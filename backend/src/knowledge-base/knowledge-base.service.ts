@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
 import { AIService } from '../ai/ai.service';
 
@@ -29,20 +29,25 @@ export class KnowledgeBaseService {
     return this.store.findDocumentsByCompany(companyId);
   }
 
-  async deleteDocument(id: string) {
+  async assertDocumentInCompany(id: string, companyId: string) {
     const doc = await this.store.findDocumentById(id);
     if (!doc) {
       throw new NotFoundException('Document not found');
     }
+    if (doc.companyId !== companyId) {
+      throw new ForbiddenException('You do not have access to this document');
+    }
+    return doc;
+  }
+
+  async deleteDocument(id: string, companyId: string) {
+    await this.assertDocumentInCompany(id, companyId);
     await this.store.deleteDocument(id);
     return { success: true };
   }
 
-  async reindexDocument(id: string) {
-    const doc = await this.store.findDocumentById(id);
-    if (!doc) {
-      throw new NotFoundException('Document not found');
-    }
+  async reindexDocument(id: string, companyId: string) {
+    const doc = await this.assertDocumentInCompany(id, companyId);
 
     await this.store.deleteChunksByDocument(id);
     const chunks = this.chunkContent(doc.content);

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
 
 @Injectable()
@@ -32,7 +32,19 @@ export class AppointmentsService {
     });
   }
 
-  updateStatus(id: string, status: string) {
+  async assertAppointmentInCompany(id: string, companyId: string) {
+    const appointment = await this.store.findAppointmentById(id);
+    if (!appointment) {
+      throw new NotFoundException('Appointment not found');
+    }
+    if (appointment.companyId !== companyId) {
+      throw new ForbiddenException('You do not have access to this appointment');
+    }
+    return appointment;
+  }
+
+  async updateStatus(id: string, status: string, companyId: string) {
+    await this.assertAppointmentInCompany(id, companyId);
     return this.store.updateAppointment(id, { status });
   }
 }

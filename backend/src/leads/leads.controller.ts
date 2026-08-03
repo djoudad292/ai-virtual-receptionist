@@ -18,7 +18,7 @@ export class LeadsController {
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return this.leadsService.updateStatus(id, status);
+  updateStatus(@Req() req: any, @Param('id') id: string, @Body('status') status: string) {
+    return this.leadsService.updateStatus(id, status, req.user.companyId);
   }
 }

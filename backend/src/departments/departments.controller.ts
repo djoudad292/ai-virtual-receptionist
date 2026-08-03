@@ -18,12 +18,12 @@ export class DepartmentsController {
   }
 
   @Patch(':id')
-  updateDepartment(@Param('id') id: string, @Body() body: any) {
-    return this.departmentsService.updateDepartment(id, body);
+  updateDepartment(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.departmentsService.updateDepartment(id, body, req.user.companyId);
   }
 
   @Delete(':id')
-  deleteDepartment(@Param('id') id: string) {
-    return this.departmentsService.deleteDepartment(id);
+  deleteDepartment(@Req() req: any, @Param('id') id: string) {
+    return this.departmentsService.deleteDepartment(id, req.user.companyId);
   }
 }

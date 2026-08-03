@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
 
 @Injectable()
@@ -19,7 +19,19 @@ export class DepartmentsService {
     });
   }
 
-  async updateDepartment(id: string, data: any) {
+  async assertDepartmentInCompany(id: string, companyId: string) {
+    const dept = await this.store.findDepartmentById(id);
+    if (!dept) {
+      throw new NotFoundException('Department not found');
+    }
+    if (dept.companyId !== companyId) {
+      throw new ForbiddenException('You do not have access to this department');
+    }
+    return dept;
+  }
+
+  async updateDepartment(id: string, data: any, companyId: string) {
+    await this.assertDepartmentInCompany(id, companyId);
     const patch: any = {};
     if (data.name !== undefined) patch.name = data.name;
     if (data.description !== undefined) patch.description = data.description;
@@ -32,7 +44,8 @@ export class DepartmentsService {
     return updated;
   }
 
-  async deleteDepartment(id: string) {
+  async deleteDepartment(id: string, companyId: string) {
+    await this.assertDepartmentInCompany(id, companyId);
     await this.store.deleteDepartment(id);
     return { success: true };
   }

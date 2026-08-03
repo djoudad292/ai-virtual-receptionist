@@ -28,9 +28,10 @@ export class AgentsController {
 
   @Patch(':id/status')
   setOnlineStatus(
+    @Req() req: any,
     @Param('id') id: string,
     @Body('isOnline') isOnline: boolean,
   ) {
-    return this.agentsService.setOnlineStatus(id, isOnline);
+    return this.agentsService.setOnlineStatus(id, isOnline, req.user.companyId);
   }
 }

@@ -387,7 +387,6 @@
         setConnected(true);
         socket.emit('joinConversation', { conversationId: conversationId, companyId: companyId });
       });
-
       socket.on('disconnect', function () {
         setConnected(false);
         showBanner('Connection lost. Reconnecting…', 'lost');
@@ -507,7 +506,7 @@
     messages.push(msg);
     addMessage(msg);
     showTyping(true);
-    socket.emit('sendMessage', { conversationId: conversationId, content: text, senderType: 'user' });
+    socket.emit('sendMessage', { conversationId: conversationId, content: text, senderType: 'user', companyId: companyId });
     scrollBottom();
   }
 

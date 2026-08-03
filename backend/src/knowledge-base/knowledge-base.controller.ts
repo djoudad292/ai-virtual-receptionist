@@ -35,13 +35,13 @@ export class KnowledgeBaseController {
   }
 
   @Delete(':id')
-  deleteDocument(@Param('id') id: string) {
-    return this.kbService.deleteDocument(id);
+  deleteDocument(@Req() req: any, @Param('id') id: string) {
+    return this.kbService.deleteDocument(id, req.user.companyId);
   }
 
   @Post(':id/reindex')
-  reindexDocument(@Param('id') id: string) {
-    return this.kbService.reindexDocument(id);
+  reindexDocument(@Req() req: any, @Param('id') id: string) {
+    return this.kbService.reindexDocument(id, req.user.companyId);
   }
 
   @Post('search')

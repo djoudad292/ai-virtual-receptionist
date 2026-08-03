@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from '../chat/chat.service';
 import { AIService } from '../ai/ai.service';
+import { JWT_SECRET } from '../common/config';
 
 interface AuthenticatedSocket extends Socket {
   user?: {
@@ -52,7 +53,7 @@ export class WebSocketGateway
 
     try {
       const payload = this.jwtService.verify(token, {
-        secret: process.env.JWT_SECRET || 'super-secret-key-change-in-production',
+        secret: JWT_SECRET(),
       });
 
       client.user = {
@@ -81,18 +82,45 @@ export class WebSocketGateway
   @SubscribeMessage('joinConversation')
   async handleJoinConversation(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string; companyId?: string },
   ) {
     if (!data?.conversationId) return;
+
+    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
+    if (!conversationCompany) return;
+
+    if (client.user?.companyId) {
+      if (client.user.companyId !== conversationCompany) {
+        client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
+        return;
+      }
+    } else if (data.companyId !== conversationCompany) {
+      client.emit('error', { message: 'Forbidden: invalid company for conversation' });
+      return;
+    }
+
     client.join(`conversation:${data.conversationId}`);
   }
 
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string; content: string },
+    @MessageBody() data: { conversationId: string; content: string; companyId?: string },
   ) {
     if (!data?.conversationId || !data?.content) return;
+
+    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
+    if (!conversationCompany) return;
+
+    if (client.user?.companyId) {
+      if (client.user.companyId !== conversationCompany) {
+        client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
+        return;
+      }
+    } else if (data.companyId !== conversationCompany) {
+      client.emit('error', { message: 'Forbidden: invalid company for conversation' });
+      return;
+    }
 
     const senderId = client.user?.id || null;
     const isAgent = client.user?.role === 'AGENT' || client.user?.role === 'COMPANY_ADMIN';
@@ -205,6 +233,12 @@ export class WebSocketGateway
   ) {
     if (!data?.conversationId || !client.user) return;
 
+    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
+    if (!conversationCompany || conversationCompany !== client.user.companyId) {
+      client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
+      return;
+    }
+
     await this.chatService.sendMessage(
       data.conversationId,
       client.user.id,
@@ -220,9 +254,16 @@ export class WebSocketGateway
   ) {
     if (!data?.conversationId || !client.user) return;
 
+    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
+    if (!conversationCompany || conversationCompany !== client.user.companyId) {
+      client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
+      return;
+    }
+
     const agent = await this.chatService.assignAgent(
       data.conversationId,
       client.user.id,
+      client.user.companyId,
     );
 
     const systemMessage = await this.chatService.sendMessage(

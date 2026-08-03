@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -24,13 +25,17 @@ export class ChatController {
 
   @Get(':id/messages')
   @UseGuards(JwtAuthGuard)
-  getMessages(@Param('id') id: string) {
-    return this.chatService.getMessages(id);
+  getMessages(@Req() req: any, @Param('id') id: string) {
+    return this.chatService.getMessagesForCompany(id, req.user.companyId);
   }
 
   @Post()
-  createConversation(@Body('companyId') companyId?: string) {
-    return this.chatService.createConversation(companyId || 'public');
+  async createConversation(@Body('companyId') companyId?: string) {
+    if (!companyId) {
+      throw new ForbiddenException('A valid companyId is required');
+    }
+    const company = await this.chatService.findCompanyOrThrow(companyId);
+    return this.chatService.createConversation(company.id);
   }
 
   @Post(':id/messages')
@@ -39,17 +44,24 @@ export class ChatController {
     @Param('id') id: string,
     @Body('content') content: string,
   ) {
-    return this.chatService.sendMessage(id, req.user.id, 'agent', content);
+    return this.chatService.sendMessageToConversation(
+      id,
+      req.user.id,
+      'agent',
+      content,
+      req.user.companyId,
+    );
   }
 
   @Patch(':id/assign')
   async assignAgent(@Req() req: any, @Param('id') id: string, @Body('agentId') agentId?: string) {
     const targetAgentId = agentId || req.user.id;
-    return this.chatService.assignAgent(id, targetAgentId);
+    return this.chatService.assignAgent(id, targetAgentId, req.user.companyId);
   }
 
   @Patch(':id/resolve')
-  resolveConversation(@Param('id') id: string) {
-    return this.chatService.resolveConversation(id);
+  @UseGuards(JwtAuthGuard)
+  resolveConversation(@Req() req: any, @Param('id') id: string) {
+    return this.chatService.resolveConversation(id, req.user.companyId);
   }
 }
