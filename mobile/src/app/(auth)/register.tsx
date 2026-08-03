@@ -27,7 +27,7 @@ export default function RegisterScreen() {
     try {
       await warmUpBackend()
       await register(name.trim(), email.trim(), password, companyName.trim())
-      router.replace('/(dashboard)')
+      router.replace('/(dashboard)/(tabs)')
     } catch (err: any) {
       setError(err?.message || 'Failed to create account')
     } finally {

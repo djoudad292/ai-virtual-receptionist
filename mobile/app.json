@@ -8,13 +8,15 @@
     "scheme": "aireceptionist",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0B1120",
+    "newArchEnabled": true,
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "supportsTablet": true,
       "bundleIdentifier": "com.djaouad.aivirtualreceptionist"
     },
     "android": {
       "package": "com.djaouad.aivirtualreceptionist",
+      "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#0B1120",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

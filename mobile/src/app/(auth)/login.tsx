@@ -21,7 +21,7 @@ export default function LoginScreen() {
     try {
       await warmUpBackend()
       await login(email.trim(), password)
-      router.replace('/(dashboard)')
+      router.replace('/(dashboard)/(tabs)')
     } catch (err: any) {
       setError(err?.message || 'Failed to sign in')
     } finally {
