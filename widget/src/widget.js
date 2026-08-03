@@ -125,8 +125,34 @@
       '#ai-widget-root .ai-input-row button:disabled { opacity:.5; cursor:default; }',
       '#ai-widget-root .ai-input-row button svg { width:18px; height:18px; fill:#fff; }',
       '@media (max-width:480px) {',
-      '  #ai-widget-root .ai-panel { ' + side + ':0; bottom:0; width:100vw; max-width:100vw; max-height:100vh; height:100vh; border-radius:0; }',
-      '  #ai-widget-root .ai-bubble { bottom:16px; ' + side + ':16px; width:54px; height:54px; }',
+      '  #ai-widget-root .ai-panel {',
+      '    ' + side + ':0; bottom:0; top:auto;',
+      '    width:100vw; max-width:100vw;',
+      '    max-height:none; height:100vh; height:100dvh;',
+      '    border-radius:16px 16px 0 0;',
+      '    transform:translateY(100%); opacity:1;',
+      '    transition:transform .28s ease;',
+      '    padding-bottom:env(safe-area-inset-bottom);',
+      '  }',
+      '  #ai-widget-root .ai-panel.open {',
+      '    transform:translateY(0) scale(1);',
+      '  }',
+      '  #ai-widget-root .ai-header { padding:14px 16px calc(14px + env(safe-area-inset-top)); }',
+      '  #ai-widget-root .ai-header h3 { font-size:17px; }',
+      '  #ai-widget-root .ai-minimize { width:32px; height:32px; }',
+      '  #ai-widget-root .ai-messages { padding:12px; gap:12px; padding-bottom:20px; }',
+      '  #ai-widget-root .ai-msg { max-width:88%; font-size:15px; padding:11px 15px; }',
+      '  #ai-widget-root .ai-typing { padding:13px 17px; }',
+      '  #ai-widget-root .ai-input-row { padding:12px 14px calc(12px + env(safe-area-inset-bottom)); gap:10px; }',
+      '  #ai-widget-root .ai-input-row input { font-size:16px; padding:12px 16px; border-radius:22px; }',
+      '  #ai-widget-root .ai-input-row button { width:46px; height:46px; border-radius:50%; }',
+      '  #ai-widget-root .ai-bubble { bottom:16px; ' + side + ':16px; width:56px; height:56px; }',
+      '  #ai-widget-root .ai-bubble svg { width:26px; height:26px; }',
+      '  #ai-widget-root .ai-footer { padding:8px 16px calc(8px + env(safe-area-inset-bottom)); font-size:10px; }',
+      '}',
+      '/* keep background from scrolling when the mobile sheet is open */',
+      '@media (max-width:480px) {',
+      '  html.ai-widget-lock, html.ai-widget-lock body { overflow:hidden; height:100%; }',
       '}',
     ].join('\n');
   }
@@ -234,12 +260,22 @@
     isOpen ? close() : open();
   }
 
+  function isMobile() {
+    return window.matchMedia('(max-width:480px)').matches;
+  }
+
+  function lockScroll(lock) {
+    if (!isMobile()) return;
+    document.documentElement.classList.toggle('ai-widget-lock', lock);
+  }
+
   function open() {
     isOpen = true;
     panel.classList.add('open');
     unreadCount = 0;
     badgeEl.classList.remove('show');
     bubble.classList.remove('pulse');
+    lockScroll(true);
     scrollBottom();
     inputEl.focus();
   }
@@ -247,6 +283,7 @@
   function close() {
     isOpen = false;
     panel.classList.remove('open');
+    lockScroll(false);
   }
 
   function scrollBottom() {
