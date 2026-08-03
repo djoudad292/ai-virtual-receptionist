@@ -8,6 +8,7 @@ export type StoredUser = {
   name: string;
   role: string;
   companyId?: string;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -120,12 +121,17 @@ export type StoredDepartment = {
 export class StoreService {
   constructor(private db: DatabaseService) {}
 
+  // Raw queries (analytics / reports)
+  async getRaw<T extends Record<string, any> = any>(text: string, params?: any[]): Promise<T[]> {
+    return this.db.query<T>(text, params);
+  }
+
   // Users
-  async createUser(data: Omit<StoredUser, 'createdAt' | 'updatedAt'>): Promise<StoredUser> {
+  async createUser(data: Omit<StoredUser, 'createdAt' | 'updatedAt' | 'tokenVersion'>): Promise<StoredUser> {
     const rows = await this.db.query<StoredUser>(
-      `INSERT INTO users (id, email, password_hash, name, role, company_id, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, now(), now())
-       RETURNING id, email, password_hash AS password, name, role, company_id AS "companyId", created_at AS "createdAt", updated_at AS "updatedAt"`,
+      `INSERT INTO users (id, email, password_hash, name, role, company_id, token_version, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 0, now(), now())
+       RETURNING id, email, password_hash AS password, name, role, company_id AS "companyId", token_version AS "tokenVersion", created_at AS "createdAt", updated_at AS "updatedAt"`,
       [data.id, data.email, data.password, data.name, data.role, data.companyId || null],
     );
     return rows[0];
@@ -133,7 +139,7 @@ export class StoreService {
 
   async findUserByEmail(email: string): Promise<StoredUser | null> {
     return this.db.queryOne<StoredUser>(
-      `SELECT id, email, password_hash AS password, name, role, company_id AS "companyId", created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, email, password_hash AS password, name, role, company_id AS "companyId", token_version AS "tokenVersion", created_at AS "createdAt", updated_at AS "updatedAt"
        FROM users WHERE email = $1`,
       [email],
     );
@@ -141,7 +147,7 @@ export class StoreService {
 
   async findUserById(id: string): Promise<StoredUser | null> {
     return this.db.queryOne<StoredUser>(
-      `SELECT id, email, password_hash AS password, name, role, company_id AS "companyId", created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, email, password_hash AS password, name, role, company_id AS "companyId", token_version AS "tokenVersion", created_at AS "createdAt", updated_at AS "updatedAt"
        FROM users WHERE id = $1`,
       [id],
     );
@@ -149,13 +155,56 @@ export class StoreService {
 
   async findAllUsers(): Promise<StoredUser[]> {
     return this.db.query<StoredUser>(
-      `SELECT id, email, password_hash AS password, name, role, company_id AS "companyId", created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, email, password_hash AS password, name, role, company_id AS "companyId", token_version AS "tokenVersion", created_at AS "createdAt", updated_at AS "updatedAt"
        FROM users ORDER BY created_at DESC`,
     );
   }
 
-  async updateUser(id: string, data: Partial<Pick<StoredUser, 'name' | 'email' | 'role' | 'password'>>): Promise<StoredUser | null> {
-    const sets: string[] = [];
+  // Revoke all refresh tokens for a user by bumping the version counter.
+  async revokeUserTokens(id: string): Promise<void> {
+    await this.db.execute(
+      `UPDATE users SET token_version = token_version + 1, updated_at = now() WHERE id = $1`,
+      [id],
+    );
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await this.db.execute(`DELETE FROM users WHERE id = $1`, [id]);
+  }
+
+  async deleteAgentByUserId(userId: string): Promise<void> {
+    await this.db.execute(`DELETE FROM agents WHERE user_id = $1`, [userId]);
+  }
+
+  async updatePassword(id: string, hashed: string): Promise<void> {
+    await this.db.execute(
+      `UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = now() WHERE id = $1`,
+      [id, hashed],
+    );
+  }
+
+  // Password resets
+  async createPasswordReset(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO password_resets (id, user_id, token_hash, expires_at, used)
+       VALUES ($1, $2, $3, $4, false)`,
+      [crypto.randomUUID(), userId, tokenHash, expiresAt],
+    );
+  }
+
+  async consumePasswordReset(tokenHash: string): Promise<StoredUser | null> {
+    const row = await this.db.queryOne<{ userId: string }>(
+      `SELECT user_id AS "userId" FROM password_resets
+       WHERE token_hash = $1 AND used = false AND expires_at > now()
+       ORDER BY created_at DESC LIMIT 1`,
+      [tokenHash],
+    );
+    if (!row) return null;
+    await this.db.execute(`UPDATE password_resets SET used = true WHERE token_hash = $1`, [tokenHash]);
+    return this.findUserById(row.userId);
+  }
+
+  async updateUser(id: string, data: Partial<Pick<StoredUser, 'name' | 'email' | 'role' | 'password'>>): Promise<StoredUser | null> {    const sets: string[] = [];
     const params: any[] = [id];
     let i = 2;
     if (data.name !== undefined) { sets.push(`name = $${i++}`); params.push(data.name); }
@@ -166,7 +215,7 @@ export class StoreService {
     sets.push('updated_at = now()');
     return this.db.queryOne<StoredUser>(
       `UPDATE users SET ${sets.join(', ')} WHERE id = $1
-       RETURNING id, email, password_hash AS password, name, role, company_id AS "companyId", created_at AS "createdAt", updated_at AS "updatedAt"`,
+       RETURNING id, email, password_hash AS password, name, role, company_id AS "companyId", token_version AS "tokenVersion", created_at AS "createdAt", updated_at AS "updatedAt"`,
       params,
     );
   }
@@ -233,35 +282,43 @@ export class StoreService {
     );
   }
 
-  async findConversationsByCompany(companyId: string, status?: string): Promise<StoredConversation[]> {
+  async findConversationsByCompany(companyId: string, status?: string, page = 1, limit = 50) {
+    const offset = (page - 1) * limit;
+    const where: string[] = [`c.company_id = $1`];
     const params: any[] = [companyId];
-    let where = `c.company_id = $1`;
     if (status) {
       params.push(status);
-      where += ` AND c.status = $${params.length}`;
+      where.push(`c.status = $${params.length}`);
     }
-    return this.db.query<StoredConversation>(
+    const countRow = await this.db.queryOne<{ count: number }>(
+      `SELECT count(*)::int AS count FROM conversations c WHERE ${where.join(' AND ')}`,
+      params,
+    );
+    const limitIdx = params.length + 1;
+    const offsetIdx = params.length + 2;
+    const rows = await this.db.query<StoredConversation>(
       `SELECT c.id, c.company_id AS "companyId", c.title, c.status, c.department, c.assigned_agent_id AS "assignedAgentId",
               c.lead_id AS "leadId", c.metadata, c.created_at AS "createdAt", c.updated_at AS "updatedAt",
               lm.content AS "lastMessage",
               (SELECT string_agg(DISTINCT m.sender_type, ',') FROM messages m WHERE m.conversation_id = c.id) AS sender_types
        FROM conversations c
        LEFT JOIN LATERAL (SELECT content FROM messages m WHERE m.conversation_id = c.id ORDER BY created_at DESC LIMIT 1) lm ON true
-       WHERE ${where}
-       ORDER BY c.updated_at DESC`,
-      params,
-    ).then((rows) =>
-      rows.map((r: any) => ({
-        ...r,
-        handledBy: r.sender_types
-          ? r.sender_types.split(',').includes('agent')
-            ? 'agent'
-            : r.sender_types.split(',').includes('ai')
-              ? 'ai'
-              : 'none'
-          : 'none',
-      })),
+       WHERE ${where.join(' AND ')}
+       ORDER BY c.updated_at DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      [...params, limit, offset],
     );
+    const items = rows.map((r: any) => ({
+      ...r,
+      handledBy: r.sender_types
+        ? r.sender_types.split(',').includes('agent')
+          ? 'agent'
+          : r.sender_types.split(',').includes('ai')
+            ? 'ai'
+            : 'none'
+        : 'none',
+    }));
+    return { items, total: countRow?.count ?? 0, page, perPage: limit };
   }
 
   async updateConversation(id: string, data: Partial<StoredConversation>): Promise<StoredConversation | null> {
@@ -367,6 +424,28 @@ export class StoreService {
     );
   }
 
+  async findDocumentsByCompanyPaged(companyId: string, page = 1, limit = 50) {
+    const offset = (page - 1) * limit;
+    const countRow = await this.db.queryOne<{ count: number }>(
+      `SELECT count(*)::int AS count FROM knowledge_documents WHERE company_id = $1`,
+      [companyId],
+    );
+    const rows = await this.db.query<StoredDocument>(
+      `SELECT id, company_id AS "companyId", title, content, chunks, created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM knowledge_documents WHERE company_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      [companyId, limit, offset],
+    );
+    return { items: rows, total: countRow?.count ?? 0, page, perPage: limit };
+  }
+
+  async countDocumentsByCompany(companyId: string): Promise<number> {
+    const row = await this.db.queryOne<{ count: number }>(
+      `SELECT count(*)::int AS count FROM knowledge_documents WHERE company_id = $1`,
+      [companyId],
+    );
+    return row?.count ?? 0;
+  }
+
   async deleteDocument(id: string): Promise<void> {
     await this.db.execute(`DELETE FROM knowledge_documents WHERE id = $1`, [id]);
   }
@@ -444,12 +523,18 @@ export class StoreService {
     );
   }
 
-  async findLeadsByCompany(companyId: string): Promise<StoredLead[]> {
-    return this.db.query<StoredLead>(
-      `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", name, email, phone, message, source, status, department, created_at AS "createdAt", updated_at AS "updatedAt"
-       FROM leads WHERE company_id = $1 ORDER BY created_at DESC`,
+  async findLeadsByCompany(companyId: string, page = 1, limit = 50) {
+    const offset = (page - 1) * limit;
+    const countRow = await this.db.queryOne<{ count: number }>(
+      `SELECT count(*)::int AS count FROM leads WHERE company_id = $1`,
       [companyId],
     );
+    const rows = await this.db.query<StoredLead>(
+      `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", name, email, phone, message, source, status, department, created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM leads WHERE company_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      [companyId, limit, offset],
+    );
+    return { items: rows, total: countRow?.count ?? 0, page, perPage: limit };
   }
 
   async updateLead(id: string, data: Partial<StoredLead>): Promise<StoredLead | null> {
@@ -493,12 +578,18 @@ export class StoreService {
     return rows[0];
   }
 
-  async findAppointmentsByCompany(companyId: string): Promise<StoredAppointment[]> {
-    return this.db.query<StoredAppointment>(
-      `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", lead_id AS "leadId", customer_name AS "customerName", customer_email AS "customerEmail", title, notes, start_time AS "startTime", end_time AS "endTime", status, created_at AS "createdAt", updated_at AS "updatedAt"
-       FROM appointments WHERE company_id = $1 ORDER BY start_time ASC`,
+  async findAppointmentsByCompany(companyId: string, page = 1, limit = 50) {
+    const offset = (page - 1) * limit;
+    const countRow = await this.db.queryOne<{ count: number }>(
+      `SELECT count(*)::int AS count FROM appointments WHERE company_id = $1`,
       [companyId],
     );
+    const rows = await this.db.query<StoredAppointment>(
+      `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", lead_id AS "leadId", customer_name AS "customerName", customer_email AS "customerEmail", title, notes, start_time AS "startTime", end_time AS "endTime", status, created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM appointments WHERE company_id = $1 ORDER BY start_time ASC LIMIT $2 OFFSET $3`,
+      [companyId, limit, offset],
+    );
+    return { items: rows, total: countRow?.count ?? 0, page, perPage: limit };
   }
 
   async findAppointmentById(id: string): Promise<StoredAppointment | null> {

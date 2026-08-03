@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import { Loader2, Users, Mail, Phone, MessageSquare } from 'lucide-react'
 
@@ -27,7 +27,7 @@ export default function LeadsView() {
   useEffect(() => {
     if (isAuthenticated) {
       apiFetch('/leads')
-        .then((data) => setLeads(Array.isArray(data) ? data : []))
+        .then((data) => setLeads(paginate<Lead>(data).items))
         .catch(() => addToast('Failed to load leads', 'error'))
         .finally(() => setLoading(false))
     }

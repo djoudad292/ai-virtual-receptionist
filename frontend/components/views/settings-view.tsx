@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch } from '@/lib/api'
 import { useToast } from '@/components/toast'
-import { Loader2, Copy, Check, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Copy, Check, Plus, Trash2, Palette } from 'lucide-react'
 
 interface CompanySettings {
   id?: string
@@ -32,6 +32,8 @@ export default function SettingsView() {
   const [deptModal, setDeptModal] = useState(false)
   const [deptForm, setDeptForm] = useState({ name: '', description: '', keywords: '' })
   const [deptSaving, setDeptSaving] = useState(false)
+  const [widget, setWidget] = useState({ title: 'Customer Support', color: '#3b82f6', position: 'right' })
+  const [widgetSaving, setWidgetSaving] = useState(false)
 
   useEffect(() => {
     if (user?.companyId) {
@@ -39,6 +41,14 @@ export default function SettingsView() {
         .then((data) => {
           setCompany(data)
           setSettingsJson(JSON.stringify(data.settings || {}, null, 2))
+          const w = data.settings?.widget
+          if (w) {
+            setWidget({
+              title: w.title || 'Customer Support',
+              color: w.color || '#3b82f6',
+              position: w.position === 'left' ? 'left' : 'right',
+            })
+          }
         })
         .catch(() => addToast('Failed to load company settings', 'error'))
       apiFetch('/departments')
@@ -71,8 +81,22 @@ export default function SettingsView() {
     }
   }
 
-  const createDepartment = async () => {
-    if (!deptForm.name.trim()) {
+  const saveWidget = async () => {
+    setWidgetSaving(true)
+    try {
+      await apiFetch('/companies/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ widget }),
+      })
+      addToast('Widget settings saved', 'success')
+    } catch (err: any) {
+      addToast(err.message || 'Failed to save widget settings', 'error')
+    } finally {
+      setWidgetSaving(false)
+    }
+  }
+
+  const createDepartment = async () => {    if (!deptForm.name.trim()) {
       addToast('Department name is required', 'error')
       return
     }
@@ -109,7 +133,7 @@ export default function SettingsView() {
   }
 
   const embedCode = user?.companyId
-    ? `<script src="${process.env.NEXT_PUBLIC_WIDGET_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}/widget.js" data-api-url="${process.env.NEXT_PUBLIC_API_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}" data-ws-url="${process.env.NEXT_PUBLIC_WS_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}" data-company-id="${user.companyId}"></script>`
+    ? `<script src="${process.env.NEXT_PUBLIC_WIDGET_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}/widget.js" data-api-url="${process.env.NEXT_PUBLIC_API_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}" data-ws-url="${process.env.NEXT_PUBLIC_WS_URL || 'https://ai-receptionist-backend-h14q.onrender.com'}" data-company-id="${user.companyId}" data-title="${widget.title}" data-primary-color="${widget.color}" data-position="${widget.position}"></script>`
     : ''
 
   const copyEmbed = () => {
@@ -203,6 +227,70 @@ export default function SettingsView() {
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Save Settings'}
             </button>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Palette className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-semibold text-foreground">Widget Customization</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Customize how the chat widget looks and behaves on your website. Changes apply instantly — no need to update your embed code.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-foreground">Widget title</label>
+                <input
+                  type="text"
+                  value={widget.title}
+                  onChange={(e) => setWidget({ ...widget, title: e.target.value })}
+                  placeholder="Customer Support"
+                  className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-foreground">Primary color</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={widget.color}
+                    onChange={(e) => setWidget({ ...widget, color: e.target.value })}
+                    className="h-10 w-14 cursor-pointer rounded-lg border border-border bg-secondary"
+                  />
+                  <input
+                    type="text"
+                    value={widget.color}
+                    onChange={(e) => setWidget({ ...widget, color: e.target.value })}
+                    className="flex-1 rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-foreground">Position</label>
+                <div className="flex gap-2">
+                  {(['right', 'left'] as const).map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => setWidget({ ...widget, position: pos })}
+                      className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+                        widget.position === pos
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-secondary text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {pos === 'right' ? 'Bottom right' : 'Bottom left'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={saveWidget}
+                disabled={widgetSaving}
+                className="rounded-xl bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {widgetSaving ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : 'Save Widget Settings'}
+              </button>
+            </div>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5">

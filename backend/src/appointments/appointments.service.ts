@@ -5,8 +5,8 @@ import { StoreService } from '../common/store.service';
 export class AppointmentsService {
   constructor(private store: StoreService) {}
 
-  getAppointments(companyId: string) {
-    return this.store.findAppointmentsByCompany(companyId);
+  getAppointments(companyId: string, page = 1, limit = 50) {
+    return this.store.findAppointmentsByCompany(companyId, page, limit);
   }
 
   async createAppointment(companyId: string, data: any) {

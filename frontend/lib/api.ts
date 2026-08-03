@@ -37,10 +37,11 @@ export async function apiFetch(path: string, options?: RequestInit, { retries = 
 
 async function rawFetch(path: string, options?: RequestInit) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
@@ -60,4 +61,14 @@ export function getApiUrl() {
 
 export function getSocketUrl() {
   return process.env.NEXT_PUBLIC_WS_URL || API_URL
+}
+
+// Normalizes paginated responses ({items, total, page, perPage}) and plain arrays
+// into {items, total, page, perPage} for consistent consumption in views.
+export function paginate<T = any>(data: any): { items: T[]; total: number; page: number; perPage: number } {
+  if (Array.isArray(data)) return { items: data as T[], total: data.length, page: 1, perPage: data.length }
+  if (data && Array.isArray(data.items)) {
+    return { items: data.items as T[], total: data.total ?? data.items.length, page: data.page ?? 1, perPage: data.perPage ?? data.items.length }
+  }
+  return { items: [], total: 0, page: 1, perPage: 50 }
 }

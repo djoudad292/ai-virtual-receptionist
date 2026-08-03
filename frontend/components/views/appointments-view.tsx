@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import { Loader2, CalendarClock, Plus, X } from 'lucide-react'
 
@@ -29,7 +29,7 @@ export default function AppointmentsView() {
   useEffect(() => {
     if (isAuthenticated) {
       apiFetch('/appointments')
-        .then((data) => setAppointments(Array.isArray(data) ? data : []))
+        .then((data) => setAppointments(paginate<Appointment>(data).items))
         .catch(() => addToast('Failed to load appointments', 'error'))
         .finally(() => setLoading(false))
     }

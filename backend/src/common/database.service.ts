@@ -19,9 +19,11 @@ const SCHEMA_STATEMENTS: string[] = [
     name TEXT,
     role TEXT NOT NULL DEFAULT 'AGENT',
     company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+    token_version INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
   )`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT DEFAULT 0`,
   `CREATE TABLE IF NOT EXISTS agents (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -110,6 +112,15 @@ const SCHEMA_STATEMENTS: string[] = [
     email TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
   )`,
+  `CREATE TABLE IF NOT EXISTS password_resets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token_hash)`,
 ];
 
 const HNSW_INDEX_STATEMENT = `CREATE INDEX IF NOT EXISTS knowledge_chunks_embedding_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops)`;

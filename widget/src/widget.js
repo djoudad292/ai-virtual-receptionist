@@ -541,15 +541,37 @@
   }
 
   /* ---- init ---- */
+  function fetchConfig(cb) {
+    var xhr = new XMLHttpRequest();
+    xhr.timeout = 20000;
+    xhr.open('GET', apiUrl + '/widget/' + companyId + '/config', true);
+    xhr.onload = function () {
+      try {
+        var cfg = JSON.parse(xhr.responseText);
+        if (cfg) {
+          title = cfg.title || title;
+          if (cfg.color) primaryColor = cfg.color;
+          if (cfg.position === 'left' || cfg.position === 'right') position = cfg.position;
+        }
+      } catch (e) {}
+      cb();
+    };
+    xhr.onerror = function () { cb(); };
+    xhr.ontimeout = function () { cb(); };
+    xhr.send();
+  }
+
   function init() {
     if (!companyId) {
       console.warn('[AI Widget] data-company-id is required');
       return;
     }
-    injectStyles();
-    createDOM();
-    setConnected(false);
-    connect();
+    fetchConfig(function () {
+      injectStyles();
+      createDOM();
+      setConnected(false);
+      connect();
+    });
   }
 
   if (document.readyState === 'loading') {

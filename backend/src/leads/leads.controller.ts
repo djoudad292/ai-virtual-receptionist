@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Req } from '@nestjs/common';
 import { LeadsService } from './leads.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -8,8 +8,8 @@ export class LeadsController {
   constructor(private leadsService: LeadsService) {}
 
   @Get()
-  getLeads(@Req() req: any) {
-    return this.leadsService.getLeads(req.user.companyId);
+  getLeads(@Req() req: any, @Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.leadsService.getLeads(req.user.companyId, Number(page) || 1, Math.min(Number(limit) || 50, 100));
   }
 
   @Post()

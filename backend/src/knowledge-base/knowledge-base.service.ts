@@ -25,8 +25,8 @@ export class KnowledgeBaseService {
     return this.store.findDocumentById(document.id);
   }
 
-  getDocuments(companyId: string) {
-    return this.store.findDocumentsByCompany(companyId);
+  getDocuments(companyId: string, page = 1, limit = 50) {
+    return this.store.findDocumentsByCompanyPaged(companyId, page, limit);
   }
 
   async assertDocumentInCompany(id: string, companyId: string) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch, getSocketUrl } from '@/lib/api'
+import { apiFetch, getSocketUrl, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import { Send, Loader2, UserCheck, CheckCircle } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
@@ -41,7 +41,7 @@ export default function InboxView() {
   useEffect(() => {
     if (isAuthenticated) {
       apiFetch('/conversations')
-        .then((data) => setConversations(Array.isArray(data) ? data : data.conversations || []))
+        .then((data) => setConversations(paginate<Conversation>(data).items))
         .catch(() => addToast('Failed to load conversations', 'error'))
         .finally(() => setLoading(false))
     }

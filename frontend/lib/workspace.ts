@@ -7,6 +7,7 @@ import {
   BarChart3,
   Settings,
   LifeBuoy,
+  UserCog,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -17,6 +18,7 @@ export type Tab =
   | 'leads'
   | 'appointments'
   | 'analytics'
+  | 'team'
   | 'guide'
   | 'settings'
 
@@ -33,6 +35,7 @@ export const TABS: TabDef[] = [
   { id: 'leads', label: 'Leads', icon: Users },
   { id: 'appointments', label: 'Appointments', icon: CalendarClock },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'team', label: 'Team', icon: UserCog },
   { id: 'guide', label: 'Guide', icon: LifeBuoy },
   { id: 'settings', label: 'Settings', icon: Settings },
 ]

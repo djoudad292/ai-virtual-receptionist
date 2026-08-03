@@ -10,6 +10,7 @@ import {
   Req,
   ForbiddenException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -19,8 +20,13 @@ export class ChatController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  getConversations(@Req() req: any, @Query('status') status?: string) {
-    return this.chatService.getConversations(req.user.companyId, status);
+  getConversations(@Req() req: any, @Query('status') status?: string, @Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.chatService.getConversations(
+      req.user.companyId,
+      status,
+      Number(page) || 1,
+      Math.min(Number(limit) || 50, 100),
+    );
   }
 
   @Get(':id/messages')
@@ -30,6 +36,7 @@ export class ChatController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async createConversation(@Body('companyId') companyId?: string) {
     if (!companyId) {
       throw new ForbiddenException('A valid companyId is required');

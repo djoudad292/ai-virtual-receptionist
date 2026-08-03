@@ -14,6 +14,7 @@ import KnowledgeBaseView from '@/components/views/knowledge-base-view'
 import LeadsView from '@/components/views/leads-view'
 import AppointmentsView from '@/components/views/appointments-view'
 import AnalyticsView from '@/components/views/analytics-view'
+import TeamView from '@/components/views/team-view'
 import GuideView from '@/components/views/guide-view'
 import SettingsView from '@/components/views/settings-view'
 
@@ -61,6 +62,7 @@ export default function DashboardPage() {
           {activeTab === 'leads' && <LeadsView />}
           {activeTab === 'appointments' && <AppointmentsView />}
           {activeTab === 'analytics' && <AnalyticsView />}
+          {activeTab === 'team' && <TeamView />}
           {activeTab === 'guide' && <GuideView onNavigate={setActiveTab} />}
           {activeTab === 'settings' && <SettingsView />}
         </div>

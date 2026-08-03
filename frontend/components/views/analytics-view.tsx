@@ -15,15 +15,79 @@ interface Summary {
   appointments: number
 }
 
+interface Detail {
+  conversationsByDay: { day: string; count: number }[]
+  leadsByDay: { day: string; count: number }[]
+  leadsByDepartment: { name: string; count: number }[]
+}
+
+const DEPT_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#14b8a6', '#6366f1']
+
+function Sparkline({ points, color = '#3b82f6' }: { points: { day: string; count: number }[]; color?: string }) {
+  const values = points.map((p) => p.count)
+  const max = Math.max(...values, 1)
+  const w = 100
+  const h = 44
+  const step = values.length > 1 ? w / (values.length - 1) : 0
+  const coords = values.map((v, i) => `${(i * step).toFixed(1)},${(h - (v / max) * (h - 6) - 3).toFixed(1)}`)
+  const polyline = coords.join(' ')
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="none" style={{ height: 90 }}>
+      <polyline
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        points={polyline}
+      />
+      <polyline
+        fill={color}
+        opacity="0.12"
+        points={`0,${h} ${polyline} ${w},${h}`}
+        stroke="none"
+      />
+    </svg>
+  )
+}
+
+function BarChart({ data }: { data: { name: string; count: number }[] }) {
+  const total = data.reduce((s, d) => s + d.count, 0)
+  if (total === 0) return <p className="py-6 text-center text-xs text-muted-foreground">No data yet</p>
+  const max = Math.max(...data.map((d) => d.count), 1)
+  return (
+    <div className="space-y-3">
+      {data.map((d, i) => (
+        <div key={d.name}>
+          <div className="flex items-center justify-between text-sm mb-1">
+            <span className="text-muted-foreground truncate">{d.name}</span>
+            <span className="text-foreground font-medium">{d.count}</span>
+          </div>
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${(d.count / max) * 100}%`, backgroundColor: DEPT_COLORS[i % DEPT_COLORS.length] }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AnalyticsView() {
   const { isAuthenticated } = useAuth()
   const [stats, setStats] = useState<Summary>({ total: 0, active: 0, aiHandled: 0, humanHandled: 0, unresolved: 0, leads: 0, appointments: 0 })
+  const [detail, setDetail] = useState<Detail>({ conversationsByDay: [], leadsByDay: [], leadsByDepartment: [] })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (isAuthenticated) {
       apiFetch('/analytics/summary')
         .then((data) => setStats(data))
+        .catch(() => {})
+      apiFetch('/analytics/detail')
+        .then((data) => setDetail(data))
         .catch(() => {})
         .finally(() => setLoading(false))
     }
@@ -68,6 +132,35 @@ export default function AnalyticsView() {
               <p className="text-sm text-muted-foreground">Appointments</p>
               <p className="mt-2 text-3xl font-bold text-green-400">{stats.appointments}</p>
             </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-sm font-semibold text-foreground">Conversations (last 14 days)</h2>
+              <Sparkline points={detail.conversationsByDay} color="#3b82f6" />
+              {detail.conversationsByDay.length > 0 && (
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{detail.conversationsByDay[0]?.day}</span>
+                  <span>{detail.conversationsByDay[detail.conversationsByDay.length - 1]?.day}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-5">
+              <h2 className="mb-4 text-sm font-semibold text-foreground">Leads (last 14 days)</h2>
+              <Sparkline points={detail.leadsByDay} color="#f59e0b" />
+              {detail.leadsByDay.length > 0 && (
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{detail.leadsByDay[0]?.day}</span>
+                  <span>{detail.leadsByDay[detail.leadsByDay.length - 1]?.day}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h2 className="mb-4 text-sm font-semibold text-foreground">Leads by Department</h2>
+            <BarChart data={detail.leadsByDepartment} />
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">

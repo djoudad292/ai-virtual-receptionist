@@ -9,6 +9,7 @@ interface User {
   email: string
   name: string
   companyId: string
+  role: string
 }
 
 interface AuthContextType {
@@ -64,6 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(() => {
+    const tokenToRevoke = localStorage.getItem('token')
+    if (tokenToRevoke) {
+      apiFetch('/auth/logout', { method: 'POST' }).catch(() => {})
+    }
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     setToken(null)

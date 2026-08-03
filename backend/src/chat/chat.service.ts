@@ -34,8 +34,8 @@ export class ChatService {
     });
   }
 
-  async getConversations(companyId: string, status?: string) {
-    return this.store.findConversationsByCompany(companyId, status);
+  async getConversations(companyId: string, status?: string, page = 1, limit = 50) {
+    return this.store.findConversationsByCompany(companyId, status, page, limit);
   }
 
   async assertConversationInCompany(conversationId: string, companyId: string) {

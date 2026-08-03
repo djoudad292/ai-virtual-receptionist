@@ -5,8 +5,8 @@ import { StoreService } from '../common/store.service';
 export class LeadsService {
   constructor(private store: StoreService) {}
 
-  getLeads(companyId: string) {
-    return this.store.findLeadsByCompany(companyId);
+  getLeads(companyId: string, page = 1, limit = 50) {
+    return this.store.findLeadsByCompany(companyId, page, limit);
   }
 
   async createLead(companyId: string, data: any) {

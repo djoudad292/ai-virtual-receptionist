@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, paginate } from '@/lib/api'
 import type { Tab } from '@/lib/workspace'
 import { MessageSquare, BookOpen, Users, CalendarClock, BarChart3, Loader2, CheckCircle2, Circle, LifeBuoy } from 'lucide-react'
 
@@ -36,7 +36,7 @@ export default function OverviewView({ onNavigate }: { onNavigate: (tab: Tab) =>
   useEffect(() => {
     if (isAuthenticated) {
       apiFetch('/conversations')
-        .then((data) => setConversations(Array.isArray(data) ? data : data.conversations || []))
+        .then((data) => setConversations(paginate<Conversation>(data).items))
         .catch(() => {})
       apiFetch('/analytics/summary')
         .then((data) => setSummary(data))

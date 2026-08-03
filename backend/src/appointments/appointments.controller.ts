@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards, Req } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -8,8 +8,8 @@ export class AppointmentsController {
   constructor(private appointmentsService: AppointmentsService) {}
 
   @Get()
-  getAppointments(@Req() req: any) {
-    return this.appointmentsService.getAppointments(req.user.companyId);
+  getAppointments(@Req() req: any, @Query('page') page?: string, @Query('limit') limit?: string) {
+    return this.appointmentsService.getAppointments(req.user.companyId, Number(page) || 1, Math.min(Number(limit) || 50, 100));
   }
 
   @Post()

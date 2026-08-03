@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ChatService } from '../chat/chat.service';
 import { AIService } from '../ai/ai.service';
+import { StoreService } from '../common/store.service';
 import { JWT_SECRET } from '../common/config';
 
 interface AuthenticatedSocket extends Socket {
@@ -38,6 +39,7 @@ export class WebSocketGateway
     private jwtService: JwtService,
     private chatService: ChatService,
     private aiService: AIService,
+    private store: StoreService,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -55,6 +57,12 @@ export class WebSocketGateway
       const payload = this.jwtService.verify(token, {
         secret: JWT_SECRET(),
       });
+
+      const user = await this.store.findUserById(payload.sub);
+      if (!user || payload.ver !== user.tokenVersion) {
+        client.emit('connected', { userId: client.id });
+        return;
+      }
 
       client.user = {
         id: payload.sub,
