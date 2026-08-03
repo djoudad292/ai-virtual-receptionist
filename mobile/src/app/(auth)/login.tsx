@@ -14,18 +14,29 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState('')
 
   const handleSubmit = async () => {
     setError('')
     setLoading(true)
+    setStatus('Contacting server…')
     try {
-      await warmUpBackend()
+      const reachable = await warmUpBackend(30, 2000, (a, m) => {
+        setStatus(`Contacting server… (${a + 1}/${m})`)
+      })
+      if (!reachable) {
+        setStatus('')
+        setError('Cannot reach the server. Check your internet connection, then try again.')
+        return
+      }
+      setStatus('Signing in…')
       await login(email.trim(), password)
       router.replace('/(dashboard)/(tabs)')
     } catch (err: any) {
       setError(err?.message || 'Failed to sign in')
     } finally {
       setLoading(false)
+      setStatus('')
     }
   }
 
@@ -61,7 +72,12 @@ export default function LoginScreen() {
               secureTextEntry
             />
 
-            <Button title={loading ? 'Waking up the assistant…' : 'Sign In'} onPress={handleSubmit} loading={loading} />
+            <Button title="Sign In" onPress={handleSubmit} loading={loading} />
+            {status ? (
+              <Text style={{ color: Colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 10 }}>
+                {status}
+              </Text>
+            ) : null}
 
             <TouchableOpacity style={{ marginTop: 14, alignItems: 'center' }} onPress={() => router.push('/(auth)/forgot-password')}>
               <Text style={{ color: Colors.primary, fontSize: 14, fontWeight: '500' }}>Forgot your password?</Text>

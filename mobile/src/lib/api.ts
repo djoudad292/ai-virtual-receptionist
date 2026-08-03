@@ -46,13 +46,28 @@ export async function setToken(token: string | null) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-export async function warmUpBackend(maxAttempts = 40, delayMs = 2000) {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export async function warmUpBackend(
+  maxAttempts = 30,
+  delayMs = 2000,
+  onStatus?: (attempt: number, max: number) => void,
+) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    onStatus?.(attempt, maxAttempts)
     try {
-      const res = await fetch(`${API_URL}/api/health`, { signal: AbortSignal.timeout(30000) })
+      const res = await fetchWithTimeout(`${API_URL}/api/health`, {}, 15000)
       if (res.ok) return true
     } catch {
-      // still booting
+      // still booting or unreachable — keep polling
     }
     await sleep(delayMs)
   }
@@ -78,14 +93,14 @@ async function rawFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = await getToken()
   const body = options?.body
   const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetchWithTimeout(`${API_URL}${path}`, {
     ...options,
     headers: {
       ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers || {}),
     },
-  })
+  }, 45000)
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Request failed' }))
     const err = new Error(error.message || error.error || 'Request failed')

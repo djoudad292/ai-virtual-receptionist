@@ -16,6 +16,7 @@ export default function RegisterScreen() {
   const [companyName, setCompanyName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState('')
 
   const handleSubmit = async () => {
     setError('')
@@ -24,14 +25,24 @@ export default function RegisterScreen() {
       return
     }
     setLoading(true)
+    setStatus('Contacting server…')
     try {
-      await warmUpBackend()
+      const reachable = await warmUpBackend(30, 2000, (a, m) => {
+        setStatus(`Contacting server… (${a + 1}/${m})`)
+      })
+      if (!reachable) {
+        setStatus('')
+        setError('Cannot reach the server. Check your internet connection, then try again.')
+        return
+      }
+      setStatus('Creating account…')
       await register(name.trim(), email.trim(), password, companyName.trim())
       router.replace('/(dashboard)/(tabs)')
     } catch (err: any) {
       setError(err?.message || 'Failed to create account')
     } finally {
       setLoading(false)
+      setStatus('')
     }
   }
 
@@ -64,6 +75,11 @@ export default function RegisterScreen() {
             <Field label="Password" value={password} onChangeText={setPassword} placeholder="At least 6 characters" secureTextEntry />
 
             <Button title="Create Account" onPress={handleSubmit} loading={loading} />
+            {status ? (
+              <Text style={{ color: Colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 10 }}>
+                {status}
+              </Text>
+            ) : null}
 
             <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 24 }}>
               <Text style={{ color: Colors.mutedForeground, fontSize: 14 }}>Already have an account? </Text>
