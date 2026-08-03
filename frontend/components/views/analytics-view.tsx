@@ -98,7 +98,7 @@ export default function AnalyticsView() {
   const resolved = Math.max(stats.total - stats.unresolved, 0)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div>
         <h2 className="text-sm font-semibold text-foreground">Analytics</h2>
         <p className="text-xs text-muted-foreground mt-0.5">

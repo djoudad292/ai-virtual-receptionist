@@ -102,7 +102,7 @@ const sections = [
 
 export default function GuideView({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-4 md:p-6 max-w-4xl">
       <div className="rounded-2xl border border-border bg-card p-6">
         <h2 className="text-xl font-bold text-foreground">How to use your AI Receptionist</h2>
         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">

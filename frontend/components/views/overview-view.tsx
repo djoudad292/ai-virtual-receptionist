@@ -76,10 +76,10 @@ export default function OverviewView({ onNavigate }: { onNavigate: (tab: Tab) =>
   ]
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       {!allDone && (
         <div className="mb-8 rounded-xl border border-border bg-card p-5">
-          <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-foreground">Getting Started</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">

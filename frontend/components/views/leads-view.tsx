@@ -47,7 +47,7 @@ export default function LeadsView() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-foreground">Captured Leads</h2>
         <p className="text-xs text-muted-foreground mt-0.5">

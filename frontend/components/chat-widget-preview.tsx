@@ -122,8 +122,8 @@ export default function ChatWidgetPreview({ companyId = 'preview', title = 'Live
           <MessageSquare className="h-6 w-6" />
         </button>
       ) : (
-        <div className="flex h-[500px] w-[380px] flex-col rounded-2xl border border-border bg-card shadow-2xl">
-          <div className="flex items-center justify-between rounded-t-2xl border-b border-border bg-secondary px-4 py-3">
+        <div className="fixed inset-0 z-50 flex flex-col bg-card shadow-2xl md:inset-auto md:bottom-6 md:right-6 md:h-[500px] md:w-[380px] md:rounded-2xl md:border md:border-border">
+          <div className="flex items-center justify-between border-b border-border bg-secondary px-4 py-3 md:rounded-t-2xl">
             <div className="flex items-center gap-2">
               <div className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
               <span className="text-sm font-medium text-foreground">{title}</span>

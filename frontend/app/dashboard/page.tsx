@@ -48,7 +48,7 @@ export default function DashboardPage() {
       <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} active={activeTab} onNavigate={setActiveTab} />
 
       <div className="flex flex-1 flex-col md:ml-64">
-        <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-border bg-background/80 backdrop-blur-sm px-6 py-4">
+        <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-border bg-background/80 backdrop-blur-sm px-4 py-3 md:px-6 md:py-4">
           <button onClick={() => setMobileOpen(true)} className="text-muted-foreground md:hidden">
             <Menu className="h-5 w-5" />
           </button>

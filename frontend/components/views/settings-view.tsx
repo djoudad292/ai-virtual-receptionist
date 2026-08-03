@@ -144,7 +144,7 @@ export default function SettingsView() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
+    <div className="p-4 md:p-6 space-y-6 max-w-3xl">
       <div>
         <h2 className="text-sm font-semibold text-foreground">Settings</h2>
         <p className="text-xs text-muted-foreground mt-0.5">

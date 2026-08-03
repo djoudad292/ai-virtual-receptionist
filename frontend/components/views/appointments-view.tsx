@@ -78,8 +78,8 @@ export default function AppointmentsView() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="p-4 md:p-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Appointments</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -88,7 +88,7 @@ export default function AppointmentsView() {
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex shrink-0 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <Plus className="h-4 w-4" /> New Appointment
         </button>

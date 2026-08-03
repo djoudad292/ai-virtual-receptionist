@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch, getSocketUrl, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
-import { Send, Loader2, UserCheck, CheckCircle } from 'lucide-react'
+import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
 
 interface Conversation {
@@ -129,7 +129,7 @@ export default function InboxView() {
 
   return (
     <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
-      <div className="w-full border-r border-border md:w-80 lg:w-96">
+      <div className={`w-full border-r border-border md:block md:w-80 lg:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
         <div className="p-4">
           <input
             type="text"
@@ -181,7 +181,7 @@ export default function InboxView() {
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col">
+      <div className={`flex flex-1 flex-col ${selectedConv ? 'fixed inset-0 z-40 bg-background md:static md:z-auto' : 'hidden md:flex'}`}>
         {!selectedConv ? (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
@@ -193,34 +193,43 @@ export default function InboxView() {
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between border-b border-border px-6 py-3">
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {selectedConvData?.title || 'Conversation'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {selectedConvData?.status} &middot; Handled by: {selectedConvData?.handledBy || 'AI'}
-                </p>
+            <div className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6">
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  onClick={() => setSelectedConv(null)}
+                  className="text-muted-foreground hover:text-foreground md:hidden"
+                  aria-label="Back to conversations"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {selectedConvData?.title || 'Conversation'}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {selectedConvData?.status} &middot; Handled by: {selectedConvData?.handledBy || 'AI'}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-1.5">
                 <button
                   onClick={handleTakeover}
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors md:px-3"
                 >
                   <UserCheck className="h-3.5 w-3.5" />
-                  Takeover
+                  <span className="hidden md:inline">Takeover</span>
                 </button>
                 <button
                   onClick={handleResolve}
-                  className="flex items-center gap-1.5 rounded-lg bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-400 hover:bg-green-500/20 transition-colors"
+                  className="flex items-center gap-1.5 rounded-lg bg-green-500/10 px-2.5 py-1.5 text-xs font-medium text-green-400 hover:bg-green-500/20 transition-colors md:px-3"
                 >
                   <CheckCircle className="h-3.5 w-3.5" />
-                  Resolve
+                  <span className="hidden md:inline">Resolve</span>
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4" style={{ height: 'calc(100vh - 180px)' }}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 md:p-6" style={{ height: 'calc(100vh - 180px)' }}>
               {messagesLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
