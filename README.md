@@ -46,6 +46,22 @@ An AI-powered virtual receptionist that **answers customer questions**, **captur
 | LLM         | OpenRouter (`google/gemini-2.5-flash` default)    |
 | Embeddings  | OpenAI `text-embedding-3-small` (with deterministic local fallback when no key) |
 
+## Mobile App (Android)
+
+Same full dashboard as a native app (Expo / React Native) — overview, live inbox, leads, appointments, analytics, knowledge base, team, guide and settings.
+
+- **Download the Android APK** → [AI Virtual Receptionist — Android build](https://expo.dev/accounts/djaouadfrihs-team/projects/ai-virtual-receptionist/builds/334dda20-39ae-4e92-bc02-138df81f99eb) — scan the QR code (or open the link) on your phone to install directly.
+- New APKs are auto-built on every push to `mobile/` (see the "Mobile App Build (EAS)" workflow in Actions).
+- **iOS**: not yet published — iPhones require a paid Apple Developer account + TestFlight. Until then, run it on iOS via Expo Go (below).
+
+Run from source:
+
+```bash
+cd mobile
+npm install
+npx expo start   # scan the QR with Expo Go, or press w for web
+```
+
 ## Quick Start
 
 ### Prerequisites
