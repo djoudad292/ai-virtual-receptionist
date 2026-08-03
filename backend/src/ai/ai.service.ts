@@ -125,36 +125,54 @@ export class AIService {
   private async chat(messages: { role: string; content: string }[]): Promise<string | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return null;
-    try {
-      const doFetch = async () => {
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-            'HTTP-Referer': process.env.APP_URL || '',
-            'X-Title': 'AI Virtual Receptionist',
-          },
-          body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
-            messages,
-            max_tokens: 500,
-            temperature: 0.3,
-          }),
-        });
-        if (!res.ok) {
-          const errBody = await res.text();
-          throw new Error(`OpenRouter HTTP ${res.status}: ${errBody.slice(0, 200)}`);
+
+    const doFetch = async (): Promise<any> => {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.APP_URL || '',
+          'X-Title': 'AI Virtual Receptionist',
+        },
+        body: JSON.stringify({
+          model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+          messages,
+          max_tokens: 500,
+          temperature: 0.3,
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`OpenRouter HTTP ${res.status}: ${errBody.slice(0, 200)}`);
+      }
+      return res.json();
+    };
+
+    // Retry transient provider errors (rate limits, 503 "request queue is full", 5xx) with backoff.
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const json: any = await this.withTimeout(doFetch(), 30000);
+        const content = json.choices?.[0]?.message?.content;
+        return typeof content === 'string' && content.trim() ? content : null;
+      } catch (err) {
+        const msg = (err as Error).message;
+        const isRetryable =
+          /HTTP 503|HTTP 429|HTTP 5\d\d|request queue is full|temporarily overloaded|rate.?limit/i.test(msg);
+        if (isRetryable && attempt < maxRetries) {
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          this.logger.warn(
+            `OpenRouter retry ${attempt}/${maxRetries - 1} after ${delay}ms: ${msg}`,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
         }
-        return res.json();
-      };
-      const json: any = await this.withTimeout(doFetch(), 30000);
-      const content = json.choices?.[0]?.message?.content;
-      return typeof content === 'string' && content.trim() ? content : null;
-    } catch (err) {
-      this.logger.error(`OpenRouter generation failed: ${(err as Error).message}`);
-      return null;
+        this.logger.error(`OpenRouter generation failed: ${msg}`);
+        return null;
+      }
     }
+    return null;
   }
 
   // Receptionist orchestration

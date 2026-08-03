@@ -1,0 +1,9 @@
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NEXT_PUBLIC_API_URL = "https://ai-receptionist-backend-h14q.onrender.com"
+  NEXT_PUBLIC_WS_URL = "wss://ai-receptionist-backend-h14q.onrender.com"
+  NEXT_PUBLIC_WIDGET_URL = "https://ai-receptionist-backend-h14q.onrender.com"
