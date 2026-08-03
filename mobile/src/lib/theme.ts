@@ -1,0 +1,30 @@
+export const Colors = {
+  background: '#0B1120',
+  card: '#0B1120',
+  cardAlt: '#111827',
+  foreground: '#F8FAFC',
+  muted: '#1E293B',
+  secondary: '#0F172A',
+  mutedForeground: '#94A3B8',
+  border: '#1F2937',
+  primary: '#3B82F6',
+  primaryForeground: '#0B1120',
+  primarySoft: 'rgba(59,130,246,0.12)',
+  green: '#22C55E',
+  greenSoft: 'rgba(34,197,94,0.12)',
+  red: '#EF4444',
+  redSoft: 'rgba(239,68,68,0.12)',
+  purple: '#A855F7',
+  purpleSoft: 'rgba(168,85,247,0.12)',
+  orange: '#F97316',
+  orangeSoft: 'rgba(249,115,22,0.12)',
+  yellow: '#FACC15',
+  cyan: '#22D3EE',
+  blue: '#3B82F6',
+  blueSoft: 'rgba(59,130,246,0.12)',
+  slate: '#64748B',
+  slateSoft: 'rgba(100,116,139,0.12)',
+} as const
+
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ai-receptionist-backend-h14q.onrender.com'
+export const WS_URL = process.env.EXPO_PUBLIC_WS_URL || API_URL
