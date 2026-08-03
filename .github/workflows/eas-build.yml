@@ -1,0 +1,75 @@
+name: Mobile App Build (EAS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/eas-build.yml'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+
+jobs:
+  # Android preview APK: auto-built on every push to mobile/. Produces a
+  # directly installable APK with a download link + QR code in EAS.
+  android-preview:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Build preview APK on EAS
+        run: npx eas-cli@latest build --platform android --profile preview --non-interactive --no-wait
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Fetch build URL
+        run: |
+          npx eas-cli@latest build:list --platform android --limit 1 --non-interactive --json > /tmp/eas-list.json
+          node -e "
+            const builds = JSON.parse(require('fs').readFileSync('/tmp/eas-list.json','utf8'));
+            const b = builds[0];
+            if (b) console.log('::notice title=EAS Android Build::' + (b.artifacts?.buildUrl || b.id));
+          "
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+  # iOS preview: manually triggered only — requires a paid Apple Developer
+  # account (Apple Team ID + distribution certificate) to produce an
+  # installable build. It will NOT run on push.
+  ios-preview:
+    name: Build iOS preview
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both')
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Build iOS preview on EAS
+        run: npx eas-cli@latest build --platform ios --profile preview --non-interactive --no-wait
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
