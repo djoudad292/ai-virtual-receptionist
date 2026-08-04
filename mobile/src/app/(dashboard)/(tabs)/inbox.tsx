@@ -33,8 +33,8 @@ const statusVariant: Record<string, 'green' | 'blue' | 'slate'> = {
 }
 
 export default function InboxScreen() {
-  const { token } = useAuth()
-  const params = useLocalSearchParams<{ open?: string }>()
+  const { token, user } = useAuth()
+  const params = useLocalSearchParams<{ open?: string; ai?: string }>()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConv, setSelectedConv] = useState<string | null>(params.open || null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -46,6 +46,10 @@ export default function InboxScreen() {
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [aiMode, setAiMode] = useState(false)
+  const [aiSocket, setAiSocket] = useState<Socket | null>(null)
+  const [aiThinking, setAiThinking] = useState(false)
+  const [startingAi, setStartingAi] = useState(false)
   const listRef = useRef<FlatList<Message>>(null)
 
   const loadConversations = useCallback(async (refresh = false) => {
@@ -114,14 +118,87 @@ export default function InboxScreen() {
     }
   }, [socket, selectedConv])
 
+  useEffect(() => {
+    if (!aiMode || !selectedConv || !user?.companyId) return
+    const s = io(getSocketUrl(), {
+      transports: ['websocket', 'polling'],
+      timeout: 15000,
+    })
+    s.on('connect', () => {
+      s.emit('joinConversation', { conversationId: selectedConv, companyId: user.companyId })
+      setAiSocket(s)
+    })
+    s.on('newMessage', (msg: Message) => {
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
+    })
+    s.on('aiResponse', (data: { message: Message }) => {
+      setAiThinking(false)
+      if (data?.message) {
+        setMessages((prev) => (prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message]))
+      }
+    })
+    s.on('aiThinking', (data: { isThinking: boolean }) => setAiThinking(Boolean(data?.isThinking)))
+    return () => {
+      s.disconnect()
+      setAiSocket(null)
+      setAiThinking(false)
+    }
+  }, [aiMode, selectedConv, user?.companyId])
+
   const scrollToEnd = useCallback(() => {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100)
   }, [])
+
+  const startAiConversation = async () => {
+    if (!user?.companyId) {
+      setError('Missing company id')
+      return
+    }
+    setStartingAi(true)
+    setError('')
+    try {
+      const data = await apiFetch<{ id?: string; conversationId?: string }>('/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ companyId: user.companyId }),
+      })
+      const id = data.id || data.conversationId
+      if (!id) throw new Error('Could not create conversation')
+      setAiMode(true)
+      setSearch('')
+      setSelectedConv(id)
+      setMessages([
+        {
+          id: 'welcome',
+          content: 'Welcome! Type a message to chat with your AI receptionist.',
+          senderType: 'system',
+          createdAt: new Date().toISOString(),
+        },
+      ])
+      loadConversations()
+    } catch (e: any) {
+      setError(e?.message || 'Failed to start AI conversation')
+    } finally {
+      setStartingAi(false)
+    }
+  }
+
+  const closeChat = () => {
+    setSelectedConv(null)
+    setAiMode(false)
+  }
 
   const sendMessage = async () => {
     const content = input.trim()
     if (!content || !selectedConv) return
     setInput('')
+    if (aiMode) {
+      if (aiSocket && user?.companyId) {
+        aiSocket.emit('sendMessage', { conversationId: selectedConv, content, companyId: user.companyId })
+      } else {
+        setError('AI chat is not connected yet — try again in a second.')
+      }
+      return
+    }
     try {
       await apiFetch(`/conversations/${selectedConv}/messages`, {
         method: 'POST',
@@ -171,28 +248,32 @@ export default function InboxScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
           <View style={styles.chatHeader}>
-            <TouchableOpacity onPress={() => setSelectedConv(null)} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity onPress={closeChat} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="arrow-back" size={22} color={Colors.foreground} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={{ color: Colors.foreground, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
-                {selectedConvData?.title || 'Conversation'}
+                {aiMode ? 'AI Conversation' : selectedConvData?.title || 'Conversation'}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={[styles.dot, { backgroundColor: selectedConvData?.status === 'active' ? Colors.green : Colors.slate }]} />
+                <View style={[styles.dot, { backgroundColor: Colors.primary }]} />
                 <Text style={{ color: Colors.mutedForeground, fontSize: 12 }}>
-                  {selectedConvData?.status} · {selectedConvData?.handledBy ? 'Agent' : 'AI'}
+                  {aiMode ? 'You are chatting with the AI' : `${selectedConvData?.status} · ${selectedConvData?.handledBy ? 'Agent' : 'AI'}`}
                 </Text>
               </View>
             </View>
-            <TouchableOpacity onPress={handleTakeover} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="person-add-outline" size={18} color={Colors.foreground} />
-              <Text style={styles.headerBtnText}>Takeover</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleResolve} style={[styles.headerBtn, { borderColor: Colors.greenSoft }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="checkmark-circle-outline" size={18} color={Colors.green} />
-              <Text style={[styles.headerBtnText, { color: Colors.green }]}>Resolve</Text>
-            </TouchableOpacity>
+            {!aiMode && (
+              <>
+                <TouchableOpacity onPress={handleTakeover} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="person-add-outline" size={18} color={Colors.foreground} />
+                  <Text style={styles.headerBtnText}>Takeover</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleResolve} style={[styles.headerBtn, { borderColor: Colors.greenSoft }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={Colors.green} />
+                  <Text style={[styles.headerBtnText, { color: Colors.green }]}>Resolve</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
 
           {notice ? (
@@ -214,6 +295,15 @@ export default function InboxScreen() {
               onLayout={scrollToEnd}
               ListEmptyComponent={
                 <EmptyState icon={<Ionicons name="chatbubble-ellipses-outline" size={40} color={Colors.slate} />} title="No messages yet" subtitle="Send the first reply to get the conversation going." />
+              }
+              ListFooterComponent={
+                aiThinking ? (
+                  <View style={styles.typingRow}>
+                    <View style={[styles.bubble, { backgroundColor: Colors.secondary }]}>
+                      <Text style={{ color: Colors.mutedForeground, fontSize: 13 }}>AI is typing…</Text>
+                    </View>
+                  </View>
+                ) : null
               }
               renderItem={({ item }) => {
                 const isUser = item.senderType === 'user'
@@ -263,14 +353,20 @@ export default function InboxScreen() {
   return (
     <Screen>
       <View style={{ paddingTop: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <View style={{ flex: 1 }}>
             <Text style={{ color: Colors.foreground, fontSize: 22, fontWeight: '700', marginBottom: 4 }}>Inbox</Text>
-            <Text style={{ color: Colors.mutedForeground, fontSize: 13, marginBottom: 12 }}>
+            <Text style={{ color: Colors.mutedForeground, fontSize: 13 }}>
               Live conversations with your visitors
             </Text>
           </View>
-          {activeCount > 0 ? <Badge text={`${activeCount} active`} variant="green" /> : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {activeCount > 0 ? <Badge text={`${activeCount} active`} variant="green" /> : null}
+            <TouchableOpacity onPress={startAiConversation} disabled={startingAi} style={styles.aiChatBtn}>
+              <Ionicons name="sparkles" size={15} color={Colors.primaryForeground} />
+              <Text style={styles.aiChatBtnText}>{startingAi ? 'Starting…' : 'AI Chat'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <TextInput
           value={search}
@@ -284,16 +380,24 @@ export default function InboxScreen() {
       {loading ? (
         <Spinner label="Loading conversations…" />
       ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={<Ionicons name="chatbubbles-outline" size={40} color={Colors.slate} />}
-          title={search ? 'No matches' : 'No conversations'}
-          subtitle={search ? 'Try a different search' : 'When a visitor uses the widget on your site, their conversation appears here.'}
-        />
+        <View>
+          <EmptyState
+            icon={<Ionicons name="chatbubbles-outline" size={40} color={Colors.slate} />}
+            title={search ? 'No matches' : 'No conversations'}
+            subtitle={search ? 'Try a different search' : 'When a visitor uses the widget on your site, their conversation appears here.'}
+          />
+          {!search ? (
+            <TouchableOpacity onPress={startAiConversation} disabled={startingAi} style={styles.startAiBtn}>
+              <Ionicons name="sparkles" size={18} color={Colors.primaryForeground} />
+              <Text style={styles.startAiBtnText}>{startingAi ? 'Starting…' : 'Start an AI conversation'}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={(c) => c.id}
-          contentContainerStyle={{ paddingBottom: 20, gap: 8 }}
+          contentContainerStyle={{ paddingBottom: 90, gap: 8 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadConversations(true)} tintColor={Colors.primary} />}
           renderItem={({ item }) => (
             <TouchableOpacity activeOpacity={0.8} onPress={() => setSelectedConv(item.id)} style={styles.convRow}>
@@ -318,6 +422,15 @@ export default function InboxScreen() {
           )}
         />
       )}
+
+      <TouchableOpacity
+        onPress={startAiConversation}
+        disabled={startingAi}
+        style={[styles.fab, { opacity: startingAi ? 0.6 : 1 }]}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="chatbubble-ellipses" size={26} color={Colors.primaryForeground} />
+      </TouchableOpacity>
     </Screen>
   )
 }
@@ -410,4 +523,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  aiChatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  aiChatBtnText: { color: Colors.primaryForeground, fontSize: 13, fontWeight: '700' },
+  startAiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginHorizontal: 24,
+    marginTop: 4,
+  },
+  startAiBtnText: { color: Colors.primaryForeground, fontSize: 15, fontWeight: '700' },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.foreground,
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  typingRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8 },
 })
