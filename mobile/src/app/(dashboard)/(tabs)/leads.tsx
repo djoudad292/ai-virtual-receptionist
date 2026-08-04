@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native'
+import { useEffect, useState, useCallback } from 'react'
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, RefreshControl } from 'react-native'
 import { apiFetch, paginate, formatDate } from '@/lib/api'
 import { Screen, Spinner, EmptyState, Badge, ModalView, Field, Button } from '@/components/ui'
 import { Colors } from '@/lib/theme'
@@ -21,24 +21,36 @@ const statusColors: Record<string, 'green' | 'blue' | 'orange' | 'purple' | 'sla
   new: 'blue',
   contacted: 'orange',
   qualified: 'green',
-  converted: 'green',
-  lost: 'red',
+  closed: 'slate',
 }
+
+const statusOptions = ['new', 'contacted', 'qualified', 'closed']
 
 export default function LeadsScreen() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [selected, setSelected] = useState<Lead | null>(null)
   const [error, setError] = useState('')
 
-  const load = () => {
-    apiFetch('/leads')
-      .then((data) => setLeads(paginate<Lead>(data).items))
-      .catch((e) => setError(e?.message || 'Failed to load leads'))
-      .finally(() => setLoading(false))
-  }
+  const load = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true)
+    else setLoading(true)
+    setError('')
+    try {
+      const data = await apiFetch('/leads')
+      setLeads(paginate<Lead>(data).items)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load leads')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
 
-  useEffect(load, [])
+  useEffect(() => {
+    load()
+  }, [load])
 
   const updateStatus = async (status: string) => {
     if (!selected) return
@@ -53,8 +65,6 @@ export default function LeadsScreen() {
       setError(e?.message || 'Failed to update status')
     }
   }
-
-  const statusOptions = ['new', 'contacted', 'qualified', 'converted', 'lost']
 
   return (
     <Screen>
@@ -78,6 +88,7 @@ export default function LeadsScreen() {
           data={leads}
           keyExtractor={(l) => l.id}
           contentContainerStyle={{ paddingBottom: 20, gap: 8 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={Colors.primary} />}
           renderItem={({ item }) => (
             <TouchableOpacity activeOpacity={0.8} onPress={() => setSelected(item)} style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -94,6 +105,7 @@ export default function LeadsScreen() {
                   {item.department ? (
                     <Text style={{ color: Colors.primary, fontSize: 11 }}>{item.department}</Text>
                   ) : null}
+                  {item.phone ? <Text style={{ color: Colors.slate, fontSize: 11 }}>{item.phone}</Text> : null}
                   <Text style={{ color: Colors.slate, fontSize: 11 }}>{formatDate(item.createdAt)}</Text>
                 </View>
               </View>
@@ -110,6 +122,12 @@ export default function LeadsScreen() {
             <Field label="Name" value={selected.name || 'Anonymous'} editable={false} />
             <Field label="Email" value={selected.email || '—'} editable={false} />
             <Field label="Phone" value={selected.phone || '—'} editable={false} />
+            {selected.department ? (
+              <Field label="Department" value={selected.department} editable={false} />
+            ) : null}
+            {selected.source ? (
+              <Field label="Source" value={selected.source} editable={false} />
+            ) : null}
             {selected.message ? (
               <View style={{ marginBottom: 14 }}>
                 <Text style={{ color: Colors.mutedForeground, fontSize: 12, marginBottom: 6 }}>Message</Text>

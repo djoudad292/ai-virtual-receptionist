@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Screen, Card } from '@/components/ui'
+import { Screen, Card, Button } from '@/components/ui'
 import { StackHeader } from '@/components/stack-header'
 import { Colors } from '@/lib/theme'
 import { Ionicons } from '@expo/vector-icons'
@@ -126,6 +126,21 @@ export default function GuideScreen() {
           ))}
         </View>
       ))}
+
+      <Card style={{ alignItems: 'stretch' }}>
+        <Text style={{ color: Colors.foreground, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>Ready to set it up?</Text>
+        <Text style={{ color: Colors.mutedForeground, fontSize: 13, textAlign: 'center', marginTop: 6, marginBottom: 16, lineHeight: 19 }}>
+          Add documents to the knowledge base and grab the embed code for your website.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Button title="Add Documents" onPress={() => router.push('/(dashboard)/knowledge')} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button title="Get Embed Code" onPress={() => router.push('/(dashboard)/settings')} variant="outline" />
+          </View>
+        </View>
+      </Card>
     </Screen>
   )
 }

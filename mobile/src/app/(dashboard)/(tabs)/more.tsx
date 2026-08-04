@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
 import { Screen } from '@/components/ui'
@@ -44,7 +44,6 @@ export default function MoreScreen() {
         <Text style={styles.sectionTitle}>Menu</Text>
 
         {sections.map((section) => {
-          const Icon = Ionicons
           return (
             <TouchableOpacity
               key={section.key}
@@ -53,7 +52,7 @@ export default function MoreScreen() {
               style={styles.row}
             >
               <View style={[styles.iconBox, { backgroundColor: `${section.color}22` }]}>
-                <Icon name={section.icon as any} size={20} color={section.color} />
+                <Ionicons name={section.icon as any} size={20} color={section.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>{section.label}</Text>
@@ -72,7 +71,7 @@ export default function MoreScreen() {
             <Text style={[styles.rowTitle, { color: Colors.red }]}>Sign Out</Text>
             <Text style={styles.rowDesc}>End your session</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.mutedForeground} />
+          <Ionicons name="log-out-outline" size={16} color={Colors.red} />
         </TouchableOpacity>
 
         <Text style={{ textAlign: 'center', color: Colors.slate, fontSize: 11, marginTop: 24 }}>

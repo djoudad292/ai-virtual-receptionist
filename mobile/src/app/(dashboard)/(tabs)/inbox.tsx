@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { View, Text, TextInput, TouchableOpacity, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLocalSearchParams } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch, getSocketUrl, paginate, formatTime } from '@/lib/api'
+import { apiFetch, getSocketUrl, paginate, formatDate, formatTime } from '@/lib/api'
 import { Screen, Spinner, EmptyState, Badge } from '@/components/ui'
 import { Colors } from '@/lib/theme'
 import { Ionicons } from '@expo/vector-icons'
@@ -25,25 +27,52 @@ interface Message {
   createdAt: string
 }
 
+const statusVariant: Record<string, 'green' | 'blue' | 'slate'> = {
+  active: 'green',
+  resolved: 'blue',
+}
+
 export default function InboxScreen() {
   const { token } = useAuth()
+  const params = useLocalSearchParams<{ open?: string }>()
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [selectedConv, setSelectedConv] = useState<string | null>(null)
+  const [selectedConv, setSelectedConv] = useState<string | null>(params.open || null)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [socket, setSocket] = useState<Socket | null>(null)
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const listRef = useRef<FlatList<Message>>(null)
 
-  useEffect(() => {
-    apiFetch('/conversations')
-      .then((data) => setConversations(paginate<Conversation>(data).items))
-      .catch((e) => setError(e?.message || 'Failed to load conversations'))
-      .finally(() => setLoading(false))
+  const loadConversations = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true)
+    else setLoading(true)
+    setError('')
+    try {
+      const data = await apiFetch('/conversations')
+      setConversations(paginate<Conversation>(data).items)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load conversations')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
+
+  useEffect(() => {
+    loadConversations()
+  }, [loadConversations])
+
+  useEffect(() => {
+    if (params.open) {
+      setSelectedConv(params.open)
+      setSearch('')
+    }
+  }, [params.open])
 
   useEffect(() => {
     if (!selectedConv) return
@@ -70,6 +99,10 @@ export default function InboxScreen() {
         setMessages((prev) => (prev.some((m) => m.id === data.message.id) ? prev : [...prev, data.message]))
       }
     })
+    s.on('takeover', () => {
+      setNotice('The AI has paused and a human agent is now handling this conversation.')
+      setTimeout(() => setNotice(''), 4000)
+    })
     return () => {
       s.disconnect()
     }
@@ -92,7 +125,7 @@ export default function InboxScreen() {
     try {
       await apiFetch(`/conversations/${selectedConv}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, senderType: 'agent' }),
       })
     } catch (e: any) {
       setError(e?.message || 'Failed to send message')
@@ -101,9 +134,12 @@ export default function InboxScreen() {
 
   const handleTakeover = async () => {
     if (!selectedConv) return
+    setError('')
     try {
       await apiFetch(`/conversations/${selectedConv}/assign`, { method: 'PATCH' })
       setConversations((prev) => prev.map((c) => (c.id === selectedConv ? { ...c, handledBy: 'you' } : c)))
+      setNotice('You have taken over this conversation. The AI is paused.')
+      setTimeout(() => setNotice(''), 4000)
     } catch (e: any) {
       setError(e?.message || 'Failed to assign conversation')
     }
@@ -111,15 +147,19 @@ export default function InboxScreen() {
 
   const handleResolve = async () => {
     if (!selectedConv) return
+    setError('')
     try {
       await apiFetch(`/conversations/${selectedConv}/resolve`, { method: 'PATCH' })
       setConversations((prev) => prev.map((c) => (c.id === selectedConv ? { ...c, status: 'resolved' } : c)))
+      setNotice('Conversation resolved.')
+      setTimeout(() => setNotice(''), 4000)
     } catch (e: any) {
       setError(e?.message || 'Failed to resolve conversation')
     }
   }
 
   const selectedConvData = conversations.find((c) => c.id === selectedConv)
+  const activeCount = conversations.filter((c) => c.status === 'active').length
   const filtered = conversations.filter(
     (c) =>
       (c.title || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -128,8 +168,8 @@ export default function InboxScreen() {
 
   if (selectedConv) {
     return (
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: Colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-        <View style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }} edges={['top']}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
           <View style={styles.chatHeader}>
             <TouchableOpacity onPress={() => setSelectedConv(null)} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="arrow-back" size={22} color={Colors.foreground} />
@@ -138,17 +178,29 @@ export default function InboxScreen() {
               <Text style={{ color: Colors.foreground, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
                 {selectedConvData?.title || 'Conversation'}
               </Text>
-              <Text style={{ color: Colors.mutedForeground, fontSize: 12 }}>
-                Handled by: {selectedConvData?.handledBy || 'AI'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={[styles.dot, { backgroundColor: selectedConvData?.status === 'active' ? Colors.green : Colors.slate }]} />
+                <Text style={{ color: Colors.mutedForeground, fontSize: 12 }}>
+                  {selectedConvData?.status} · {selectedConvData?.handledBy ? 'Agent' : 'AI'}
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity onPress={handleTakeover} style={styles.headerAction} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity onPress={handleTakeover} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="person-add-outline" size={18} color={Colors.foreground} />
+              <Text style={styles.headerBtnText}>Takeover</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleResolve} style={styles.headerAction} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="checkmark-circle-outline" size={19} color={Colors.green} />
+            <TouchableOpacity onPress={handleResolve} style={[styles.headerBtn, { borderColor: Colors.greenSoft }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="checkmark-circle-outline" size={18} color={Colors.green} />
+              <Text style={[styles.headerBtnText, { color: Colors.green }]}>Resolve</Text>
             </TouchableOpacity>
           </View>
+
+          {notice ? (
+            <View style={styles.noticeBar}>
+              <Ionicons name="information-circle-outline" size={16} color={Colors.blue} />
+              <Text style={{ color: Colors.blue, fontSize: 12, flex: 1 }}>{notice}</Text>
+            </View>
+          ) : null}
 
           {messagesLoading ? (
             <Spinner label="Loading messages…" />
@@ -203,18 +255,23 @@ export default function InboxScreen() {
               <Ionicons name="send" size={18} color={Colors.primaryForeground} />
             </TouchableOpacity>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     )
   }
 
   return (
     <Screen>
       <View style={{ paddingTop: 12 }}>
-        <Text style={{ color: Colors.foreground, fontSize: 22, fontWeight: '700', marginBottom: 4 }}>Inbox</Text>
-        <Text style={{ color: Colors.mutedForeground, fontSize: 13, marginBottom: 12 }}>
-          Live conversations with your visitors
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Text style={{ color: Colors.foreground, fontSize: 22, fontWeight: '700', marginBottom: 4 }}>Inbox</Text>
+            <Text style={{ color: Colors.mutedForeground, fontSize: 13, marginBottom: 12 }}>
+              Live conversations with your visitors
+            </Text>
+          </View>
+          {activeCount > 0 ? <Badge text={`${activeCount} active`} variant="green" /> : null}
+        </View>
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -237,6 +294,7 @@ export default function InboxScreen() {
           data={filtered}
           keyExtractor={(c) => c.id}
           contentContainerStyle={{ paddingBottom: 20, gap: 8 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadConversations(true)} tintColor={Colors.primary} />}
           renderItem={({ item }) => (
             <TouchableOpacity activeOpacity={0.8} onPress={() => setSelectedConv(item.id)} style={styles.convRow}>
               <View style={{ flex: 1 }}>
@@ -244,14 +302,16 @@ export default function InboxScreen() {
                   <Text style={{ color: Colors.foreground, fontSize: 14, fontWeight: '600', flex: 1 }} numberOfLines={1}>
                     {item.title || 'Untitled Conversation'}
                   </Text>
-                  <Badge text={item.status} variant={item.status === 'active' ? 'green' : item.status === 'resolved' ? 'blue' : 'slate'} />
+                  <Badge text={item.status} variant={statusVariant[item.status] || 'slate'} />
                 </View>
                 {item.lastMessage ? (
                   <Text style={{ color: Colors.mutedForeground, fontSize: 12, marginTop: 3 }} numberOfLines={1}>
                     {item.lastMessage}
                   </Text>
                 ) : null}
-                <Text style={{ color: Colors.slate, fontSize: 11, marginTop: 3 }}>{formatTime(item.updatedAt || item.createdAt)}</Text>
+                <Text style={{ color: Colors.slate, fontSize: 11, marginTop: 3 }}>
+                  {formatDate(item.updatedAt || item.createdAt)} · {formatTime(item.updatedAt || item.createdAt)}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={Colors.mutedForeground} />
             </TouchableOpacity>
@@ -286,15 +346,34 @@ const styles = StyleSheet.create({
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.card,
   },
   backBtn: { marginRight: 2 },
-  headerAction: { marginLeft: 6, padding: 4 },
+  headerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  headerBtnText: { color: Colors.foreground, fontSize: 11, fontWeight: '600' },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  noticeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.blueSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
   bubble: {
     borderRadius: 16,
     paddingHorizontal: 14,
@@ -306,7 +385,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 10,
     padding: 12,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
     backgroundColor: Colors.card,
   },

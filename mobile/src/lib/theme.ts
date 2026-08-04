@@ -1,7 +1,7 @@
 export const Colors = {
   background: '#0B1120',
-  card: '#0B1120',
-  cardAlt: '#111827',
+  card: '#111A2E',
+  cardAlt: '#0E1526',
   foreground: '#F8FAFC',
   muted: '#1E293B',
   secondary: '#0F172A',

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
+import * as Clipboard from 'expo-clipboard'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch } from '@/lib/api'
 import { Screen, Card, Spinner, Button, ModalView, Field } from '@/components/ui'
@@ -16,11 +17,14 @@ interface Department {
   email?: string | null
 }
 
+const COLOR_PRESETS = ['#3b82f6', '#8b5cf6', '#f97316', '#22c55e', '#ef4444', '#14b8a6']
+
 export default function SettingsScreen() {
   const router = useRouter()
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [companyName, setCompanyName] = useState('Your Company')
   const [departments, setDepartments] = useState<Department[]>([])
   const [widget, setWidget] = useState({ title: 'Customer Support', color: '#3b82f6', position: 'right' })
   const [widgetSaving, setWidgetSaving] = useState(false)
@@ -32,6 +36,7 @@ export default function SettingsScreen() {
   useEffect(() => {
     apiFetch('/companies/profile')
       .then((data) => {
+        setCompanyName(data?.name || 'Your Company')
         const w = data?.settings?.widget
         if (w) {
           setWidget({
@@ -56,6 +61,7 @@ export default function SettingsScreen() {
         method: 'PATCH',
         body: JSON.stringify({ widget }),
       })
+      Alert.alert('Saved', 'Widget settings updated.')
     } catch (e: any) {
       setError(e?.message || 'Failed to save widget settings')
     } finally {
@@ -67,9 +73,10 @@ export default function SettingsScreen() {
     ? `<script src="${API_URL}/widget.js" data-api-url="${API_URL}" data-ws-url="${API_URL}" data-company-id="${user.companyId}" data-title="${widget.title}" data-primary-color="${widget.color}" data-position="${widget.position}"></script>`
     : ''
 
-  const copyEmbed = () => {
-    Alert.alert('Embed code copied', 'Paste this script into your website HTML to enable the chat widget.')
+  const copyEmbed = async () => {
+    await Clipboard.setStringAsync(embedCode)
     setCopied(true)
+    Alert.alert('Copied', 'Embed code copied to your clipboard.')
     setTimeout(() => setCopied(false), 2000)
   }
 
@@ -92,6 +99,7 @@ export default function SettingsScreen() {
       setDepartments((prev) => [...prev, dept])
       setDeptModal(false)
       setDeptForm({ name: '', description: '', keywords: '' })
+      Alert.alert('Added', 'Department created.')
     } catch (e: any) {
       setError(e?.message || 'Failed to add department')
     } finally {
@@ -109,6 +117,7 @@ export default function SettingsScreen() {
           try {
             await apiFetch(`/departments/${id}`, { method: 'DELETE' })
             setDepartments((prev) => prev.filter((d) => d.id !== id))
+            Alert.alert('Deleted', 'Department removed.')
           } catch (e: any) {
             setError(e?.message || 'Failed to delete department')
           }
@@ -127,10 +136,48 @@ export default function SettingsScreen() {
         <>
           {error ? <Text style={{ color: Colors.red, fontSize: 13, marginBottom: 12 }}>{error}</Text> : null}
 
+          <Text style={styles.sectionTitle}>Company</Text>
+          <Card>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={[styles.iconBox, { backgroundColor: Colors.primarySoft }]}>
+                <Ionicons name="business-outline" size={20} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: Colors.foreground, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>
+                  {companyName}
+                </Text>
+                <Text style={{ color: Colors.mutedForeground, fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                  ID: {user?.companyId}
+                </Text>
+              </View>
+            </View>
+          </Card>
+
           <Text style={styles.sectionTitle}>Widget</Text>
           <Card>
             <Field label="Widget title" value={widget.title} onChangeText={(t) => setWidget({ ...widget, title: t })} placeholder="Customer Support" />
-            <Field label="Primary color" value={widget.color} onChangeText={(c) => setWidget({ ...widget, color: c })} placeholder="#3b82f6" autoCapitalize="none" />
+            <Text style={{ color: Colors.foreground, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Primary color</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+              {COLOR_PRESETS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  onPress={() => setWidget({ ...widget, color })}
+                  style={[
+                    styles.swatch,
+                    { backgroundColor: color },
+                    widget.color.toLowerCase() === color && styles.swatchActive,
+                  ]}
+                />
+              ))}
+            </View>
+            <Field
+              label="Custom color (hex)"
+              value={widget.color}
+              onChangeText={(c) => setWidget({ ...widget, color: c })}
+              placeholder="#3b82f6"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
             <Text style={{ color: Colors.foreground, fontSize: 13, fontWeight: '600', marginBottom: 8 }}>Position</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
               {(['right', 'left'] as const).map((pos) => (
@@ -244,4 +291,13 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
+  iconBox: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  swatch: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  swatchActive: { borderColor: Colors.foreground },
 })
