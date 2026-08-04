@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 
-@SkipThrottle()
+@SkipThrottle({ global: true, strict: true })
 @Controller()
 export class HealthController {
   @Get('api/health')
