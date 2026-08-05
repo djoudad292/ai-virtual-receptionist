@@ -10,8 +10,10 @@ on:
 
 jobs:
   build-apk:
-    name: Build debug APK
+    name: Build release APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,3 +41,20 @@ jobs:
           name: ai-receptionist-apk
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
+      - name: Publish APK to public GitHub Release
+        run: |
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk ai-receptionist.apk
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: Latest AI Receptionist APK
+          body: |
+            Latest Android APK built from main (commit ${{ github.sha }}).
+            Everyone can download and install it from the asset below.
+          files: ai-receptionist.apk
+          overwrite_files: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
