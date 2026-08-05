@@ -34,7 +34,7 @@ export default function InboxView() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [messagesLoading, setMessagesLoading] = useState(false)
-  const [socket, setSocket] = useState<Socket | null>(null)
+  const [, setSocket] = useState<Socket | null>(null)
   const [search, setSearch] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 

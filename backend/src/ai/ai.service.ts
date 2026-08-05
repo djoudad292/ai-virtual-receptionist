@@ -226,7 +226,7 @@ export class AIService {
       }
     } else {
       // No LLM / unparseable -> deterministic fallback
-      response = this.fallbackReply(context, bestSimilarity);
+      response = this.fallbackReply(context);
       if (this.looksLikeAppointment(userMessage)) intent = 'appointment';
       else if (this.extractEmail(userMessage) || /(\+?\d[\d\s-]{7,})/.test(userMessage)) intent = 'lead_capture';
       else if (context) intent = 'question';
@@ -438,7 +438,7 @@ Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACT
     return isNaN(date.getTime()) ? null : date;
   }
 
-  private fallbackReply(context: string, bestSimilarity: number): string {
+  private fallbackReply(context: string): string {
     if (context) {
       const firstLine = context.split('\n').find((l) => l.trim());
       return firstLine

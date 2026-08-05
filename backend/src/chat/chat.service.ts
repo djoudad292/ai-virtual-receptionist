@@ -5,7 +5,7 @@ import { StoreService } from '../common/store.service';
 export class ChatService {
   constructor(private store: StoreService) {}
 
-  createConversation(companyId: string, userId?: string) {
+  createConversation(companyId: string) {
     return this.store.createConversation({
       id: crypto.randomUUID(),
       companyId,

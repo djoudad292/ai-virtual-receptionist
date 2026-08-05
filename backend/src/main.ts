@@ -54,15 +54,14 @@ async function bootstrap() {
 
 async function seedDemoData(store: StoreService, ai: AIService, logger: Logger) {
   for (const id of ['preview', 'public']) {
-    const company =
-      (await store.findCompanyById(id)) ||
-      (await store.createCompany({
-        id,
-        name: id === 'preview' ? 'Preview' : 'Public',
-        slug: id,
-        plan: 'free',
-        settings: {},
-      }));
+    await store.findCompanyById(id) ||
+    (await store.createCompany({
+      id,
+      name: id === 'preview' ? 'Preview' : 'Public',
+      slug: id,
+      plan: 'free',
+      settings: {},
+    }));
 
     const existing = await store.findDocumentsByCompany(id);
     if (existing.length === 0) {

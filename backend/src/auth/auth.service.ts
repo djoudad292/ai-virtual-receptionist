@@ -150,7 +150,6 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await this.store.createPasswordReset(user.id, tokenHash, expiresAt);
 
-    const appUrl = process.env.APP_URL || '';
     const frontendUrl = process.env.FRONTEND_URL || 'https://chat.djaouad.tech';
     const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
     const mail = this.mailService.buildResetEmail(resetUrl, user.name);
