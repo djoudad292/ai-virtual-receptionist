@@ -54,9 +54,9 @@ export default function DashboardPage() {
             aria-label="Open navigation menu"
             aria-expanded={mobileOpen}
             aria-controls="mobile-nav"
-            className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary/90 md:hidden"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-6 w-6" />
           </button>
           <h1 className="text-lg font-semibold text-foreground">{activeLabel}</h1>
         </header>
