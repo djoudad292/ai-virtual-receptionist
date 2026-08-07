@@ -195,7 +195,7 @@ export default function SettingsView() {
                       {dept.keywords.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {dept.keywords.map((k) => (
-                            <span key={k} className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <span key={k} className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                               {k}
                             </span>
                           ))}

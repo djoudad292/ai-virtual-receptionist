@@ -61,7 +61,7 @@ export default function DashboardPage() {
           <h1 className="text-lg font-semibold text-foreground">{activeLabel}</h1>
         </header>
 
-        <main id="main" className="flex-1 overflow-hidden">
+        <main id="main" tabIndex={-1} className="flex-1 overflow-hidden outline-none">
           {activeTab === 'overview' && <OverviewView onNavigate={setActiveTab} />}
           {activeTab === 'inbox' && <InboxView />}
           {activeTab === 'knowledge' && <KnowledgeBaseView />}

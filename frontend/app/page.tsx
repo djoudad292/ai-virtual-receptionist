@@ -65,7 +65,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main id="main">
+      <main id="main" tabIndex={-1} className="outline-none">
         <section className="relative overflow-hidden pt-24 pb-16 md:pt-32 md:pb-20">
           <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent" />
           <div className="mx-auto max-w-7xl px-4 text-center md:px-6">

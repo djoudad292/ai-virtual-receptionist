@@ -143,7 +143,7 @@ export default function TeamView() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-4">
                   <span
-                    className={`hidden sm:inline rounded-full px-2.5 py-1 text-[10px] font-medium ${
+                    className={`hidden sm:inline rounded-full px-2.5 py-1 text-xs font-medium ${
                       agent.isOnline ? 'bg-green-500/10 text-green-400' : 'bg-secondary text-muted-foreground'
                     }`}
                   >

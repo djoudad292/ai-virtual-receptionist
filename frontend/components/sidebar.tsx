@@ -46,7 +46,7 @@ export default function Sidebar({ active, onNavigate }: SidebarProps) {
       </nav>
 
       <div className="border-t border-border px-4 py-3">
-        <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
+        <p className="text-xs text-muted-foreground text-center leading-relaxed">
           AI Virtual Receptionist by <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">djaouad.tech</a>
           <br />
           Developer{' '}

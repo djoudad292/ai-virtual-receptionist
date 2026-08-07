@@ -29,7 +29,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div id="main" className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background p-4 outline-none">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">

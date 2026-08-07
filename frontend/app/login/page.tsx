@@ -36,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div id="main" className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background p-4 outline-none">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
@@ -54,6 +54,8 @@ export default function LoginPage() {
             <input
               id="email"
               type="email"
+              name="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@company.com"
@@ -69,6 +71,8 @@ export default function LoginPage() {
             <input
               id="password"
               type="password"
+              name="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
@@ -103,7 +107,7 @@ export default function LoginPage() {
             Create one
           </Link>
         </p>
-        <p className="mt-6 text-center text-[10px] text-muted-foreground/50">
+        <p className="mt-6 text-center text-xs text-muted-foreground/50">
           Demo by{' '}
           <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">djaouad.tech</a>
           {' '}&mdash; Built by{' '}

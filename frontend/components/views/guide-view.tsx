@@ -126,7 +126,7 @@ export default function GuideView({ onNavigate }: { onNavigate: (tab: Tab) => vo
               <ol className="space-y-2">
                 {section.steps.map((step, i) => (
                   <li key={i} className="flex gap-2.5 text-sm text-muted-foreground">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-muted-foreground">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
                       {i + 1}
                     </span>
                     <span className="leading-relaxed">{step}</span>

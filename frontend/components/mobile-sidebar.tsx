@@ -17,6 +17,7 @@ export default function MobileSidebar({ open, onClose, active, onNavigate }: Mob
   const { user, logout } = useAuth()
   const overlayRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -25,7 +26,26 @@ export default function MobileSidebar({ open, onClose, active, onNavigate }: Mob
       }
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        onClose()
+        return
+      }
+      if (e.key === 'Tab') {
+        const focusables = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? [],
+        )
+        if (focusables.length === 0) return
+        const first = focusables[0]
+        const last = focusables[focusables.length - 1]
+        const active = document.activeElement
+        if (e.shiftKey && (active === first || active === null)) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
     }
     if (open) {
       document.addEventListener('mousedown', handleClickOutside)
@@ -51,6 +71,7 @@ export default function MobileSidebar({ open, onClose, active, onNavigate }: Mob
     >
       <aside
         id="mobile-nav"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Navigation menu"

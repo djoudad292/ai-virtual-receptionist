@@ -230,7 +230,7 @@ export default function InboxView() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 md:p-6" style={{ height: 'calc(100vh - 180px)' }}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 md:p-6" style={{ height: 'calc(100vh - 180px)' }} aria-live="polite">
               {messagesLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
