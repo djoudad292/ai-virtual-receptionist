@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch, getSocketUrl, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
-import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft, Sparkles } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
 
 interface Conversation {
@@ -17,12 +17,46 @@ interface Conversation {
   updatedAt: string
 }
 
+interface Source {
+  chunkText: string
+  similarity: number
+  documentTitle?: string | null
+}
+
 interface Message {
   id: string
   content: string
   senderType: 'user' | 'ai' | 'agent' | 'system'
   senderId?: string
   createdAt: string
+  metadata?: { sources?: Source[] }
+}
+
+function SourcesList({ sources }: { sources: Source[] }) {
+  const [open, setOpen] = useState(false)
+  const titles = sources
+    .map((s) => s.documentTitle || s.chunkText.slice(0, 60))
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .slice(0, 5)
+  if (!titles.length) return null
+  return (
+    <div className="mt-1.5 border-t border-border/50 pt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {open ? '▾' : '▸'} Sources ({titles.length})
+      </button>
+      {open && (
+        <ul className="mt-1 space-y-0.5">
+          {titles.map((t, i) => (
+            <li key={i} className="text-[11px] text-muted-foreground/80">• {t}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 export default function InboxView() {
@@ -36,6 +70,7 @@ export default function InboxView() {
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [, setSocket] = useState<Socket | null>(null)
   const [search, setSearch] = useState('')
+  const [suggesting, setSuggesting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -98,6 +133,24 @@ export default function InboxView() {
       })
     } catch {
       addToast('Failed to send message', 'error')
+    }
+  }
+
+  const handleSuggestReply = async () => {
+    if (!selectedConv) return
+    setSuggesting(true)
+    try {
+      const data = await apiFetch(`/conversations/${selectedConv}/suggest-reply`, { method: 'POST' })
+      if (data?.reply) {
+        setInput(data.reply)
+        addToast('Draft generated — review and send', 'success')
+      } else {
+        addToast('No relevant published documents to draft a reply', 'info')
+      }
+    } catch {
+      addToast('Failed to generate suggestion', 'error')
+    } finally {
+      setSuggesting(false)
     }
   }
 
@@ -260,6 +313,9 @@ export default function InboxView() {
                          msg.senderType === 'system' ? 'System' : 'User'}
                       </p>
                       <p>{msg.content}</p>
+                      {msg.senderType === 'ai' && msg.metadata?.sources?.length ? (
+                        <SourcesList sources={msg.metadata.sources} />
+                      ) : null}
                       <p className="mt-1 text-xs opacity-50">
                         {new Date(msg.createdAt).toLocaleTimeString()}
                       </p>
@@ -272,6 +328,15 @@ export default function InboxView() {
 
             <div className="border-t border-border p-4">
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSuggestReply}
+                  disabled={suggesting}
+                  title="Draft a reply grounded in your published documents"
+                  aria-label="AI suggest reply"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+                >
+                  {suggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                </button>
                 <input
                   type="text"
                   value={input}

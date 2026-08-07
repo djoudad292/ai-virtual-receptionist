@@ -19,6 +19,7 @@ export class ChatService {
     senderId: string | null,
     senderType: string,
     content: string,
+    metadata?: Record<string, any>,
   ) {
     const conversation = this.store.findConversationById(conversationId);
     if (!conversation) {
@@ -31,6 +32,7 @@ export class ChatService {
       senderId: senderId || undefined,
       senderType,
       content,
+      metadata,
     });
   }
 

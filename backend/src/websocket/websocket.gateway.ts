@@ -172,6 +172,7 @@ export class WebSocketGateway
           null,
           aiResponse.source === 'escalate' ? 'system' : 'ai',
           aiResponse.response,
+          { sources: aiResponse.sources || [] },
         );
 
         this.server
@@ -184,6 +185,7 @@ export class WebSocketGateway
             department: aiResponse.department,
             lead: aiResponse.lead,
             appointment: aiResponse.appointment,
+            sources: aiResponse.sources || [],
           });
 
         if (aiResponse.source === 'escalate') {

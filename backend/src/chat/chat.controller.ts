@@ -13,10 +13,14 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AIService } from '../ai/ai.service';
 
 @Controller('conversations')
 export class ChatController {
-  constructor(private chatService: ChatService) {}
+  constructor(
+    private chatService: ChatService,
+    private aiService: AIService,
+  ) {}
 
   @Get()
   @UseGuards(JwtAuthGuard)
@@ -58,6 +62,13 @@ export class ChatController {
       content,
       req.user.companyId,
     );
+  }
+
+  @Post(':id/suggest-reply')
+  @UseGuards(JwtAuthGuard)
+  async suggestReply(@Req() req: any, @Param('id') id: string) {
+    await this.chatService.assertConversationInCompany(id, req.user.companyId);
+    return this.aiService.suggestAgentReply(req.user.companyId, id);
   }
 
   @Patch(':id/assign')

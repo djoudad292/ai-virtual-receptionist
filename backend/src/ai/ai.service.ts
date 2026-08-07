@@ -8,6 +8,12 @@ const DEFAULT_DEPARTMENTS = [
   { name: 'Billing', keywords: ['bill', 'invoice', 'payment', 'refund', 'charge', 'card', 'receipt', 'billing'] },
 ];
 
+export interface Source {
+  chunkText: string;
+  similarity: number;
+  documentTitle?: string | null;
+}
+
 export interface ReceptionistResult {
   response: string;
   source: 'ai' | 'escalate';
@@ -16,11 +22,12 @@ export interface ReceptionistResult {
   department?: string | null;
   lead?: { name?: string | null; email?: string | null; phone?: string | null } | null;
   appointment?: { date?: string | null; time?: string | null; title?: string | null } | null;
+  sources: Source[];
 }
 
 export interface AskResult {
   answer: string;
-  sources: { chunkText: string; similarity: number; documentTitle?: string | null }[];
+  sources: Source[];
 }
 
 @Injectable()
@@ -201,14 +208,19 @@ export class AIService {
       const embedding = await this.withTimeout(this.generateEmbedding(query), 15000);
       // Local hashing embeddings are weaker than OpenAI's, so relax the threshold when OpenAI is absent.
       const threshold = process.env.OPENAI_API_KEY ? 0.35 : 0.12;
-      const results = await this.store.searchChunks(companyId, embedding, limit, threshold);
+      const results = await this.store.searchChunksPublished(companyId, embedding, limit, threshold);
       const filtered = results.filter((r) => r.similarity >= threshold);
       const bestSimilarity = filtered.length > 0 ? filtered[0].similarity : 0;
       const context = filtered
-        .map((r) => r.chunkText)
+        .map((r) => (r.documentTitle ? `[${r.documentTitle}]\n${r.chunkText}` : r.chunkText))
         .join('\n\n')
         .slice(0, 6000);
-      return { context, results: filtered, bestSimilarity };
+      const sources: Source[] = filtered.map((r) => ({
+        chunkText: r.chunkText,
+        similarity: r.similarity,
+        documentTitle: r.documentTitle || null,
+      }));
+      return { context, results: sources, bestSimilarity };
     } catch (err) {
       this.logger.warn(`RAG search failed: ${(err as Error).message}`);
       return { context: '', results: [], bestSimilarity: 0 };
@@ -280,7 +292,7 @@ export class AIService {
     const departments = await this.store.listDepartments(companyId);
     const departmentNames = departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
 
-    const { context, bestSimilarity } = await this.ragSearch(companyId, userMessage);
+    const { context, results: ragResults, bestSimilarity } = await this.ragSearch(companyId, userMessage);
 
     const systemPrompt = this.buildSystemPrompt(company, departmentNames, context);
     const conversationHistory = history
@@ -341,6 +353,7 @@ export class AIService {
       department,
       lead,
       appointment,
+      sources: ragResults,
     };
 
     if (conversationId) {
@@ -348,6 +361,47 @@ export class AIService {
     }
 
     return result;
+  }
+
+  // Draft a reply for a human agent, grounded in the published knowledge base.
+  async suggestAgentReply(companyId: string, conversationId: string): Promise<{ reply: string | null; sources: Source[] }> {
+    const messages = await this.store.findMessagesByConversation(conversationId);
+    const visitorMessages = messages
+      .filter((m) => m.senderType === 'user')
+      .slice(-3)
+      .map((m) => m.content)
+      .filter((c) => c.trim());
+    if (!visitorMessages.length) {
+      return { reply: null, sources: [] };
+    }
+
+    const query = visitorMessages[visitorMessages.length - 1];
+    const { context, results } = await this.ragSearch(companyId, query, 6);
+    if (!results.length || !context) {
+      return { reply: null, sources: [] };
+    }
+
+    const transcript = messages
+      .slice(-6)
+      .map((m) => `${m.senderType === 'user' ? 'Visitor' : m.senderType}: ${m.content}`)
+      .join('\n');
+
+    const draft = await this.generateAgentReply(query, context, transcript);
+    return { reply: draft, sources: results };
+  }
+
+  private async generateAgentReply(question: string, context: string, transcript: string): Promise<string | null> {
+    const system = `You are an expert customer support agent assistant.
+Draft a reply the human agent can send to the visitor. Answer ONLY from the context below - never invent facts.
+Keep it warm, professional and concise (2-4 sentences), in the same language as the visitor's message.
+If the context does not contain the answer, draft a short reply that asks for clarification or politely offers to check with the team - do not guess.`;
+    return this.chat([
+      { role: 'system', content: system },
+      {
+        role: 'user',
+        content: `Context:\n${context}\n\nConversation so far:\n${transcript}\n\nDraft a reply to the visitor's latest message.`,
+      },
+    ]);
   }
 
   // Persist side effects (leads, appointments, routing)
@@ -424,8 +478,8 @@ export class AIService {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const contextPart = context
-      ? `Answer ONLY using the context below.\n\nContext:\n${context}`
-      : 'You do not have a knowledge base for this company yet. Answer general questions naturally, and if asked about company-specific info you do not know, say you are not sure and offer to connect them with a human.';
+      ? `You answer ONLY from the knowledge base context below. If the context does not contain the answer, say you don't have that information and offer to connect them with a human. Never invent or guess facts.\n\nContext:\n${context}`
+      : 'No knowledge base documents are published for this company yet. Do NOT answer from general knowledge and do NOT invent facts about the company. If asked about company-specific information, say you do not have that information yet and offer to connect them with a human (set intent to "escalate"). You may still respond warmly to greetings and small talk.';
 
     return `You are an AI virtual receptionist for "${company?.name || 'this company'}".
 Today's date is ${todayStr} (YYYY-MM-DD). Always compute relative dates like "tomorrow" or "this Friday" from today's date.
@@ -437,9 +491,12 @@ ${contextPart}
 
 BEHAVIOR:
 - Be warm, friendly and concise (1-3 sentences).
+- NEVER invent company facts, prices, hours, or policies. Only use the knowledge base context above.
 - If the visitor wants to book or schedule a meeting, ask for their name, email and preferred date/time if not already provided.
+- If the context states business hours, availability, or booking policies, respect them when booking appointments - never promise a slot outside the stated availability.
+- If no availability information exists in the context, collect the visitor's preferred date/time and let a human confirm.
 - If the visitor provides their email and/or phone, capture it as a lead.
-- Choose the department that best matches the visitor's request.
+- Choose the department that best matches the visitor's request, but only when the context or the request clearly indicates one.
 - If you cannot help or the visitor insists on talking to a human, set intent to "escalate" and reply to connect them with a human agent.
 
 Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACTLY this shape:

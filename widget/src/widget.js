@@ -113,6 +113,10 @@
       '#ai-widget-root .ai-msg.bot { align-self:flex-start; background:#e2e8f0; color:#1e293b; border-bottom-' + side + '-radius:4px; }',
       '#ai-widget-root .ai-msg .ai-sender { font-size:11px; opacity:.7; margin-bottom:3px; }',
       '#ai-widget-root .ai-msg .ai-time { font-size:10px; opacity:.6; margin-top:4px; text-align:' + opp + '; }',
+      '#ai-widget-root .ai-sources { margin-top:6px; border-top:1px solid rgba(0,0,0,.08); padding-top:4px; }',
+      '#ai-widget-root .ai-sources summary { cursor:pointer; font-size:11px; color:#64748b; user-select:none; outline:none; }',
+      '#ai-widget-root .ai-sources ul { list-style:none; margin:4px 0 0; padding:0; }',
+      '#ai-widget-root .ai-sources li { font-size:11px; color:#475569; padding:2px 0; word-break:break-word; }',
       '#ai-widget-root .ai-typing { align-self:flex-start; display:flex; gap:4px; padding:12px 16px; background:#e2e8f0; border-radius:14px; border-bottom-' + side + '-radius:4px; display:none; }',
       '#ai-widget-root .ai-typing.show { display:flex; }',
       '#ai-widget-root .ai-typing span { width:7px; height:7px; border-radius:50%; background:#94a3b8; animation:ai-bounce 1.4s infinite; }',
@@ -335,9 +339,35 @@
       t2.textContent = msg.timestamp || timeStr();
       div.insertBefore(s, div.firstChild);
       div.appendChild(t2);
+      if (Array.isArray(msg.sources) && msg.sources.length) {
+        div.appendChild(buildSources(msg.sources));
+      }
     }
     msgContainer.insertBefore(div, typingEl);
     scrollBottom();
+  }
+
+  function buildSources(sources) {
+    var details = document.createElement('details');
+    details.className = 'ai-sources';
+    var summary = document.createElement('summary');
+    summary.textContent = 'Sources';
+    details.appendChild(summary);
+    var ul = document.createElement('ul');
+    var seen = {};
+    sources.forEach(function (src) {
+      var title = (src.documentTitle || '').trim();
+      var text = (src.chunkText || '').trim();
+      var label = title || (text.length > 60 ? text.slice(0, 57) + '…' : text);
+      if (!label || seen[label]) return;
+      seen[label] = true;
+      var li = document.createElement('li');
+      li.textContent = '• ' + label;
+      ul.appendChild(li);
+    });
+    if (ul.childNodes.length === 0) return null;
+    details.appendChild(ul);
+    return details;
   }
 
   function showTyping(show) {
@@ -463,10 +493,12 @@
           if (typeof data.content === 'string') content = data.content;
           else if (data.message && typeof data.message.content === 'string') content = data.message.content;
           else if (typeof data.message === 'string') content = data.message;
+          var sources = Array.isArray(data.sources) ? data.sources : [];
           var msg = {
             content: content,
             senderType: 'bot',
             timestamp: data.timestamp || timeStr(),
+            sources: sources,
           };
           messages.push(msg);
           addMessage(msg);

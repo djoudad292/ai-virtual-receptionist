@@ -44,6 +44,7 @@ export type StoredMessage = {
   senderId?: string | null;
   senderType: string;
   content: string;
+  metadata?: Record<string, any>;
   createdAt: Date;
 };
 

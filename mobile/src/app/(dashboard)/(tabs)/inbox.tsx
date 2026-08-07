@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, RefreshControl, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
@@ -19,12 +19,19 @@ interface Conversation {
   updatedAt: string
 }
 
+interface Source {
+  chunkText: string
+  similarity: number
+  documentTitle?: string | null
+}
+
 interface Message {
   id: string
   content: string
   senderType: 'user' | 'ai' | 'agent' | 'system'
   senderId?: string
   createdAt: string
+  metadata?: { sources?: Source[] }
 }
 
 const statusVariant: Record<string, 'green' | 'blue' | 'slate'> = {
@@ -50,6 +57,7 @@ export default function InboxScreen() {
   const [aiSocket, setAiSocket] = useState<Socket | null>(null)
   const [aiThinking, setAiThinking] = useState(false)
   const [startingAi, setStartingAi] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
   const listRef = useRef<FlatList<Message>>(null)
 
   const loadConversations = useCallback(async (refresh = false) => {
@@ -235,6 +243,26 @@ export default function InboxScreen() {
     }
   }
 
+  const handleSuggestReply = async () => {
+    if (!selectedConv) return
+    setSuggesting(true)
+    setError('')
+    try {
+      const data = await apiFetch<{ reply?: string | null }>(`/conversations/${selectedConv}/suggest-reply`, { method: 'POST' })
+      if (data?.reply) {
+        setInput(data.reply)
+        setNotice('Draft generated — review and send.')
+      } else {
+        setNotice('No relevant published documents to draft a reply.')
+      }
+      setTimeout(() => setNotice(''), 4000)
+    } catch (e: any) {
+      setError(e?.message || 'Failed to generate suggestion')
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
   const selectedConvData = conversations.find((c) => c.id === selectedConv)
   const activeCount = conversations.filter((c) => c.status === 'active').length
   const filtered = conversations.filter(
@@ -320,6 +348,16 @@ export default function InboxScreen() {
                         </Text>
                       )}
                       <Text style={{ color: textColor, fontSize: 14, lineHeight: 20 }}>{item.content}</Text>
+                      {item.senderType === 'ai' && item.metadata?.sources?.length ? (
+                        <View style={{ marginTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border, paddingTop: 4 }}>
+                          <Text style={{ color: textColor, fontSize: 10, fontWeight: '700', opacity: 0.6 }}>Sources</Text>
+                          {item.metadata.sources.slice(0, 3).map((src, i) => (
+                            <Text key={i} style={{ color: textColor, fontSize: 10, opacity: 0.75, marginTop: 2 }}>
+                              • {src.documentTitle || (src.chunkText || '').slice(0, 60)}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
                       <Text style={{ color: textColor, fontSize: 10, opacity: 0.55, marginTop: 4 }}>{formatTime(item.createdAt)}</Text>
                     </View>
                   </View>
@@ -333,6 +371,11 @@ export default function InboxScreen() {
           ) : null}
 
           <View style={styles.inputBar}>
+            {!aiMode && (
+              <TouchableOpacity onPress={handleSuggestReply} disabled={suggesting} style={styles.suggestBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                {suggesting ? <ActivityIndicator size="small" color={Colors.primary} /> : <Ionicons name="sparkles" size={18} color={Colors.primary} />}
+              </TouchableOpacity>
+            )}
             <TextInput
               value={input}
               onChangeText={setInput}
@@ -520,6 +563,16 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
