@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch } from '@/lib/api'
 import { useToast } from '@/components/toast'
-import { Loader2, UserPlus, Trash2, Copy, Check, Mail } from 'lucide-react'
+import ConfirmDialog from '@/components/confirm-dialog'
+import { Loader2, UserPlus, Trash2, Copy, Check, Mail, X } from 'lucide-react'
 
 interface TeamAgent {
   id: string
@@ -30,6 +31,7 @@ export default function TeamView() {
   const [inviting, setInviting] = useState(false)
   const [generated, setGenerated] = useState<{ email: string; name: string; tempPassword: string } | null>(null)
   const [copied, setCopied] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState<TeamAgent | null>(null)
 
   const isAdmin = user?.role === 'COMPANY_ADMIN'
 
@@ -71,7 +73,7 @@ export default function TeamView() {
   }
 
   const removeAgent = async (id: string) => {
-    if (!confirm('Remove this agent from your team? They will lose access immediately.')) return
+    setConfirmRemove(null)
     try {
       await apiFetch(`/agents/${id}`, { method: 'DELETE' })
       setAgents((prev) => prev.filter((a) => a.id !== id))
@@ -149,9 +151,9 @@ export default function TeamView() {
                   </span>
                   {isAdmin && (
                     <button
-                      onClick={() => removeAgent(agent.id)}
+                      onClick={() => setConfirmRemove(agent)}
                       className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:bg-red-500/10 transition-colors"
-                      title="Remove agent"
+                      aria-label={`Remove ${agent.user?.name || 'agent'} from team`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -190,31 +192,40 @@ export default function TeamView() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-title"
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6"
+          >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">Invite Agent</h2>
-              <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
-                <UserPlus className="h-4 w-4 rotate-45" />
+              <h2 id="invite-title" className="text-sm font-semibold text-foreground">Invite Agent</h2>
+              <button onClick={() => setShowModal(false)} aria-label="Close dialog" className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Email</label>
+                <label htmlFor="invite-email" className="mb-1 block text-xs font-medium text-foreground">Email</label>
                 <input
+                  id="invite-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="agent@company.com"
+                  autoComplete="email"
                   className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Full name (optional)</label>
+                <label htmlFor="invite-name" className="mb-1 block text-xs font-medium text-foreground">Full name (optional)</label>
                 <input
+                  id="invite-name"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Jane Doe"
+                  autoComplete="name"
                   className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
@@ -233,6 +244,14 @@ export default function TeamView() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmRemove !== null}
+        title="Remove agent?"
+        message={confirmRemove ? `${confirmRemove.user?.email || 'This agent'} will lose access to this workspace immediately.` : ''}
+        onConfirm={() => confirmRemove && removeAgent(confirmRemove.id)}
+        onCancel={() => setConfirmRemove(null)}
+      />
     </div>
   )
 }

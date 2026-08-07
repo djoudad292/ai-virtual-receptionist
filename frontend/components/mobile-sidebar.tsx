@@ -16,6 +16,7 @@ interface MobileSidebarProps {
 export default function MobileSidebar({ open, onClose, active, onNavigate }: MobileSidebarProps) {
   const { user, logout } = useAuth()
   const overlayRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -23,12 +24,18 @@ export default function MobileSidebar({ open, onClose, active, onNavigate }: Mob
         onClose()
       }
     }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
     if (open) {
       document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('keydown', handleKey)
       document.body.style.overflow = 'hidden'
+      closeRef.current?.focus()
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKey)
       document.body.style.overflow = ''
     }
   }, [open, onClose])
@@ -40,10 +47,15 @@ export default function MobileSidebar({ open, onClose, active, onNavigate }: Mob
         'fixed inset-0 z-50 bg-black/50 transition-opacity md:hidden',
         open ? 'opacity-100' : 'pointer-events-none opacity-0'
       )}
+      aria-hidden={!open}
     >
       <aside
+        id="mobile-nav"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
         className={cn(
-          'fixed left-0 top-0 z-50 flex h-full w-64 flex-col border-r border-border bg-card transition-transform',
+          'fixed left-0 top-0 z-50 flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-card transition-transform',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -54,7 +66,12 @@ export default function MobileSidebar({ open, onClose, active, onNavigate }: Mob
             </div>
             <span className="text-sm font-semibold text-foreground">Receptionist</span>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <button
+            ref={closeRef}
+            onClick={onClose}
+            aria-label="Close navigation menu"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -70,6 +87,7 @@ export default function MobileSidebar({ open, onClose, active, onNavigate }: Mob
                   onNavigate(item.id)
                   onClose()
                 }}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
                   'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left',
                   isActive

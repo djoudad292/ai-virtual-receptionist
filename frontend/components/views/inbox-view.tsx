@@ -136,6 +136,7 @@ export default function InboxView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search conversations..."
+            aria-label="Search conversations"
             className="w-full rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -277,11 +278,13 @@ export default function InboxView() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
                   placeholder="Type a reply..."
+                  aria-label="Type a reply"
                   className="flex-1 rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!input.trim()}
+                  aria-label="Send reply"
                   className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
                 >
                   <Send className="h-4 w-4" />

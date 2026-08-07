@@ -49,13 +49,19 @@ export default function DashboardPage() {
 
       <div className="flex flex-1 flex-col md:ml-64">
         <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-border bg-background/80 backdrop-blur-sm px-4 py-3 md:px-6 md:py-4">
-          <button onClick={() => setMobileOpen(true)} className="text-muted-foreground md:hidden">
+          <button
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation menu"
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-nav"
+            className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground md:hidden"
+          >
             <Menu className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-semibold text-foreground">{activeLabel}</h1>
         </header>
 
-        <div className="flex-1 overflow-hidden">
+        <main id="main" className="flex-1 overflow-hidden">
           {activeTab === 'overview' && <OverviewView onNavigate={setActiveTab} />}
           {activeTab === 'inbox' && <InboxView />}
           {activeTab === 'knowledge' && <KnowledgeBaseView />}
@@ -65,7 +71,7 @@ export default function DashboardPage() {
           {activeTab === 'team' && <TeamView />}
           {activeTab === 'guide' && <GuideView onNavigate={setActiveTab} />}
           {activeTab === 'settings' && <SettingsView />}
-        </div>
+        </main>
       </div>
 
       <ChatWidgetPreview companyId={user?.companyId || 'preview'} title="Test your AI" />

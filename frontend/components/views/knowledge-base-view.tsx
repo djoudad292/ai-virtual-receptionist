@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
+import ConfirmDialog from '@/components/confirm-dialog'
 import { Plus, Trash2, RefreshCw, Search, Loader2, X, Upload, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface Document {
@@ -30,6 +31,7 @@ export default function KnowledgeBaseView() {
   const [searchResults, setSearchResults] = useState<Document[]>([])
   const [searching, setSearching] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<Document | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -107,7 +109,7 @@ export default function KnowledgeBaseView() {
   }
 
   const deleteDocument = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return
+    setConfirmDelete(null)
     try {
       await apiFetch(`/knowledge-base/${id}`, { method: 'DELETE' })
       setDocs((prev) => prev.filter((d) => d.id !== id))
@@ -181,6 +183,7 @@ export default function KnowledgeBaseView() {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
             placeholder="Search your knowledge base..."
+            aria-label="Search your knowledge base"
             className="flex-1 rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <button
@@ -230,14 +233,14 @@ export default function KnowledgeBaseView() {
                   <button
                     onClick={() => reindexDocument(doc.id)}
                     className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                    title="Re-index"
+                    aria-label={`Re-index ${doc.title}`}
                   >
                     <RefreshCw className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => deleteDocument(doc.id)}
+                    onClick={() => setConfirmDelete(doc)}
                     className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:bg-red-500/10 transition-colors"
-                    title="Delete"
+                    aria-label={`Delete ${doc.title}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -271,17 +274,23 @@ export default function KnowledgeBaseView() {
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-doc-title"
+            className="w-full max-w-lg rounded-2xl border border-border bg-card p-6"
+          >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-foreground">Add Document</h3>
-              <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
+              <h3 id="add-doc-title" className="text-lg font-semibold text-foreground">Add Document</h3>
+              <button onClick={() => setShowModal(false)} aria-label="Close dialog" className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Title</label>
+                <label htmlFor="doc-title" className="block text-sm font-medium text-foreground mb-1">Title</label>
                 <input
+                  id="doc-title"
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
@@ -290,8 +299,9 @@ export default function KnowledgeBaseView() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Content</label>
+                <label htmlFor="doc-content" className="block text-sm font-medium text-foreground mb-1">Content</label>
                 <textarea
+                  id="doc-content"
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
                   placeholder="Document content for the AI to reference..."
@@ -318,6 +328,14 @@ export default function KnowledgeBaseView() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="Delete document?"
+        message={confirmDelete ? `"${confirmDelete.title}" will be permanently deleted. This cannot be undone.` : ''}
+        onConfirm={() => confirmDelete && deleteDocument(confirmDelete.id)}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

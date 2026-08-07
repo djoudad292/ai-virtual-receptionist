@@ -117,18 +117,24 @@ export default function ChatWidgetPreview({ companyId = 'preview', title = 'Live
       {!open ? (
         <button
           onClick={() => setOpen(true)}
+          aria-label="Open chat widget preview"
           className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all hover:bg-primary/90 animate-pulse-glow"
         >
           <MessageSquare className="h-6 w-6" />
         </button>
       ) : (
-        <div className="fixed inset-0 z-50 flex flex-col bg-card shadow-2xl md:inset-auto md:bottom-6 md:right-6 md:h-[500px] md:w-[380px] md:rounded-2xl md:border md:border-border">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          className="fixed inset-0 z-50 flex flex-col bg-card shadow-2xl md:inset-auto md:bottom-6 md:right-6 md:h-[500px] md:w-[380px] md:rounded-2xl md:border md:border-border"
+        >
           <div className="flex items-center justify-between border-b border-border bg-secondary px-4 py-3 md:rounded-t-2xl">
             <div className="flex items-center gap-2">
               <div className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
               <span className="text-sm font-medium text-foreground">{title}</span>
             </div>
-            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
+            <button onClick={() => setOpen(false)} aria-label="Close chat widget preview" className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/5 hover:text-foreground">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -139,7 +145,7 @@ export default function ChatWidgetPreview({ companyId = 'preview', title = 'Live
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3" aria-live="polite">
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -169,13 +175,15 @@ export default function ChatWidgetPreview({ companyId = 'preview', title = 'Live
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
                 placeholder={connected ? 'Type a message...' : 'Connecting...'}
+                aria-label="Type a message"
                 className="flex-1 rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 disabled={!connected}
               />
               <button
                 onClick={sendMessage}
                 disabled={!input.trim() || !connected}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
+                aria-label="Send message"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
               </button>

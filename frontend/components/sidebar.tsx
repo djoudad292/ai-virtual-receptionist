@@ -30,6 +30,7 @@ export default function Sidebar({ active, onNavigate }: SidebarProps) {
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left',
                 isActive

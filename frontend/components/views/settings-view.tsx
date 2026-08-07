@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch } from '@/lib/api'
 import { useToast } from '@/components/toast'
+import ConfirmDialog from '@/components/confirm-dialog'
 import { Loader2, Copy, Check, Plus, Trash2, Palette } from 'lucide-react'
 
 interface CompanySettings {
@@ -32,6 +33,7 @@ export default function SettingsView() {
   const [deptModal, setDeptModal] = useState(false)
   const [deptForm, setDeptForm] = useState({ name: '', description: '', keywords: '' })
   const [deptSaving, setDeptSaving] = useState(false)
+  const [confirmDeleteDept, setConfirmDeleteDept] = useState<Department | null>(null)
   const [widget, setWidget] = useState({ title: 'Customer Support', color: '#3b82f6', position: 'right' })
   const [widgetSaving, setWidgetSaving] = useState(false)
 
@@ -122,7 +124,7 @@ export default function SettingsView() {
   }
 
   const deleteDepartment = async (id: string) => {
-    if (!confirm('Delete this department?')) return
+    setConfirmDeleteDept(null)
     try {
       await apiFetch(`/departments/${id}`, { method: 'DELETE' })
       setDepartments((prev) => prev.filter((d) => d.id !== id))
@@ -201,8 +203,9 @@ export default function SettingsView() {
                       )}
                     </div>
                     <button
-                      onClick={() => deleteDepartment(dept.id)}
+                      onClick={() => setConfirmDeleteDept(dept)}
                       className="text-muted-foreground hover:text-red-400 transition-colors"
+                      aria-label={`Delete department ${dept.name}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -218,6 +221,7 @@ export default function SettingsView() {
               value={settingsJson}
               onChange={(e) => setSettingsJson(e.target.value)}
               rows={6}
+              aria-label="Company settings JSON"
               className="w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none"
             />
             <button
@@ -239,8 +243,9 @@ export default function SettingsView() {
             </p>
             <div className="space-y-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Widget title</label>
+                <label htmlFor="widget-title" className="mb-1 block text-xs font-medium text-foreground">Widget title</label>
                 <input
+                  id="widget-title"
                   type="text"
                   value={widget.title}
                   onChange={(e) => setWidget({ ...widget, title: e.target.value })}
@@ -249,9 +254,10 @@ export default function SettingsView() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Primary color</label>
+                <label htmlFor="widget-color" className="mb-1 block text-xs font-medium text-foreground">Primary color</label>
                 <div className="flex items-center gap-3">
                   <input
+                    id="widget-color"
                     type="color"
                     value={widget.color}
                     onChange={(e) => setWidget({ ...widget, color: e.target.value })}
@@ -261,17 +267,19 @@ export default function SettingsView() {
                     type="text"
                     value={widget.color}
                     onChange={(e) => setWidget({ ...widget, color: e.target.value })}
+                    aria-label="Primary color hex value"
                     className="flex-1 rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-foreground">Position</label>
+              <fieldset>
+                <legend className="mb-1 block text-xs font-medium text-foreground">Position</legend>
                 <div className="flex gap-2">
                   {(['right', 'left'] as const).map((pos) => (
                     <button
                       key={pos}
                       onClick={() => setWidget({ ...widget, position: pos })}
+                      aria-pressed={widget.position === pos}
                       className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
                         widget.position === pos
                           ? 'border-primary bg-primary/10 text-primary'
@@ -282,7 +290,7 @@ export default function SettingsView() {
                     </button>
                   ))}
                 </div>
-              </div>
+              </fieldset>
               <button
                 onClick={saveWidget}
                 disabled={widgetSaving}
@@ -305,6 +313,7 @@ export default function SettingsView() {
               <button
                 onClick={copyEmbed}
                 disabled={!embedCode}
+                aria-label="Copy embed code"
                 className="absolute right-2 top-2 rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground transition-colors"
               >
                 {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
@@ -316,27 +325,38 @@ export default function SettingsView() {
 
       {deptModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dept-title"
+            className="w-full max-w-md rounded-2xl border border-border bg-card p-6"
+          >
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-foreground">New Department</h2>
-              <button onClick={() => setDeptModal(false)} className="text-muted-foreground hover:text-foreground">
+              <h2 id="dept-title" className="text-sm font-semibold text-foreground">New Department</h2>
+              <button onClick={() => setDeptModal(false)} aria-label="Close dialog" className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
                 <Plus className="h-4 w-4 rotate-45" />
               </button>
             </div>
             <div className="space-y-3">
+              <label className="sr-only" htmlFor="dept-name">Department name</label>
               <input
+                id="dept-name"
                 placeholder="Name (e.g. Sales)"
                 value={deptForm.name}
                 onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
                 className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
+              <label className="sr-only" htmlFor="dept-desc">Description</label>
               <input
+                id="dept-desc"
                 placeholder="Description (optional)"
                 value={deptForm.description}
                 onChange={(e) => setDeptForm({ ...deptForm, description: e.target.value })}
                 className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
+              <label className="sr-only" htmlFor="dept-keywords">Keywords</label>
               <input
+                id="dept-keywords"
                 placeholder="Keywords (comma separated, e.g. price, quote, cost)"
                 value={deptForm.keywords}
                 onChange={(e) => setDeptForm({ ...deptForm, keywords: e.target.value })}
@@ -353,6 +373,14 @@ export default function SettingsView() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteDept !== null}
+        title="Delete department?"
+        message={confirmDeleteDept ? `"${confirmDeleteDept.name}" will be deleted. Conversations routed to it will need re-routing.` : ''}
+        onConfirm={() => confirmDeleteDept && deleteDepartment(confirmDeleteDept.id)}
+        onCancel={() => setConfirmDeleteDept(null)}
+      />
     </div>
   )
 }
