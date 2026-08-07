@@ -18,6 +18,11 @@ export interface ReceptionistResult {
   appointment?: { date?: string | null; time?: string | null; title?: string | null } | null;
 }
 
+export interface AskResult {
+  answer: string;
+  sources: { chunkText: string; similarity: number; documentTitle?: string | null }[];
+}
+
 @Injectable()
 export class AIService {
   private readonly logger = new Logger(AIService.name);
@@ -98,6 +103,95 @@ export class AIService {
       this.logger.warn(`KB search failed: ${(err as Error).message}`);
       return [];
     }
+  }
+
+  // RAG Q&A over a single knowledge base document
+  async askKnowledgeDocument(companyId: string, documentId: string, question: string): Promise<AskResult> {
+    const doc = await this.store.findDocumentById(documentId);
+    if (!doc || doc.companyId !== companyId) {
+      throw new Error('Document not found');
+    }
+    const embedding = await this.generateEmbedding(question);
+    const threshold = process.env.OPENAI_API_KEY ? 0.25 : 0.1;
+    let results = await this.store.searchChunksByDocument(documentId, embedding, 5, threshold);
+    if (!results.length) {
+      results = await this.store.searchChunksByDocument(documentId, embedding, 5, 0.05);
+    }
+    if (!results.length) {
+      results = await this.store.searchChunksByDocumentKeyword(documentId, this.extractTerms(question), 5);
+    }
+    const context = results
+      .map((r) => r.chunkText)
+      .join('\n\n')
+      .slice(0, 7000);
+
+    if (!results.length || !context) {
+      return {
+        answer:
+          "I couldn't find relevant information in this document to answer that question. Try rephrasing, or ask about something covered in the document.",
+        sources: [],
+      };
+    }
+
+    const answer = await this.generateAnswer(question, context, doc.title);
+    return {
+      answer:
+        answer ||
+        "I couldn't find relevant information in this document to answer that question. Try rephrasing, or ask about something covered in the document.",
+      sources: results.map((r) => ({ chunkText: r.chunkText, similarity: r.similarity })),
+    };
+  }
+
+  // RAG Q&A across all published documents of a company
+  async askCompanyPublished(companyId: string, question: string): Promise<AskResult> {
+    const embedding = await this.generateEmbedding(question);
+    const threshold = process.env.OPENAI_API_KEY ? 0.25 : 0.1;
+    let results = await this.store.searchChunksPublished(companyId, embedding, 6, threshold);
+    if (!results.length) {
+      results = await this.store.searchChunksPublished(companyId, embedding, 6, 0.05);
+    }
+    if (!results.length) {
+      results = await this.store.searchChunksPublishedKeyword(companyId, this.extractTerms(question), 6);
+    }
+
+    if (!results.length) {
+      return {
+        answer:
+          "I couldn't find relevant information to answer that question. Try rephrasing, or ask about something covered in the published documents.",
+        sources: [],
+      };
+    }
+
+    const context = results
+      .map((r) => `[${r.documentTitle}]\n${r.chunkText}`)
+      .join('\n\n')
+      .slice(0, 8000);
+
+    const answer = await this.generateAnswer(question, context, 'your documents');
+    return {
+      answer:
+        answer ||
+        "I couldn't find relevant information to answer that question. Try rephrasing, or ask about something covered in the published documents.",
+      sources: results.map((r) => ({
+        chunkText: r.chunkText,
+        similarity: r.similarity,
+        documentTitle: r.documentTitle,
+      })),
+    };
+  }
+
+  // Generate a summary for a knowledge base document
+  async summarizeKnowledgeDocument(companyId: string, documentId: string): Promise<string> {
+    const doc = await this.store.findDocumentById(documentId);
+    if (!doc || doc.companyId !== companyId) {
+      throw new Error('Document not found');
+    }
+    const text = doc.content.slice(0, 12000);
+    const summary = await this.generateSummary(text, doc.title);
+    return (
+      summary ||
+      "I couldn't generate a summary for this document. It may be empty or contain only scanned images."
+    );
   }
 
   private async ragSearch(companyId: string, query: string, limit = 5) {
@@ -446,6 +540,35 @@ Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACT
         : "I found some information, but I'm not sure it answers your question. Would you like me to connect you with a human?";
     }
     return "Thanks for reaching out! I'm not sure about that yet — would you like to leave your name and email so a human agent can get back to you, or would you like to book an appointment?";
+  }
+
+  private async generateAnswer(question: string, context: string, docTitle: string): Promise<string | null> {
+    const system = `You are an expert assistant that answers questions strictly from the provided document content.
+Answer accurately and concisely (2-6 sentences), in the same language as the question.
+If the context does not contain the answer, say so and suggest rephrasing. Never invent facts.
+Document: ${docTitle}`;
+    return this.chat([
+      { role: 'system', content: system },
+      { role: 'user', content: `Context:\n${context}\n\nQuestion: ${question}` },
+    ]);
+  }
+
+  private async generateSummary(text: string, docTitle: string): Promise<string | null> {
+    const system = `You are an expert document analyst. Write a clear, structured summary of the given document.
+Cover the main topics, key points, and any important details. Use short bullet points plus a 2-3 sentence overview.`;
+    return this.chat([
+      { role: 'system', content: system },
+      { role: 'user', content: `Document title: ${docTitle}\n\nDocument content:\n${text}` },
+    ]);
+  }
+
+  private extractTerms(question: string): string[] {
+    const words = question
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
+    return [...new Set(words)].slice(0, 6);
   }
 
   private async withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

@@ -62,6 +62,15 @@ export type StoredDocument = {
   title: string;
   content: string;
   chunks: string[];
+  filename?: string | null;
+  mime?: string | null;
+  sizeBytes: number;
+  file?: Buffer | null;
+  pageCount: number;
+  status: string;
+  summary?: string | null;
+  published: boolean;
+  error?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -400,17 +409,32 @@ export class StoreService {
   // Knowledge Base
   async createDocument(data: Omit<StoredDocument, 'createdAt' | 'updatedAt'>): Promise<StoredDocument> {
     const rows = await this.db.query<StoredDocument>(
-      `INSERT INTO knowledge_documents (id, company_id, title, content, chunks, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5::text[], now(), now())
-       RETURNING id, company_id AS "companyId", title, content, chunks, created_at AS "createdAt", updated_at AS "updatedAt"`,
-      [data.id, data.companyId, data.title, data.content, data.chunks],
+      `INSERT INTO knowledge_documents (id, company_id, title, content, chunks, filename, mime, size_bytes, file, page_count, status, summary, published, error, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())
+       RETURNING id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [
+        data.id,
+        data.companyId,
+        data.title,
+        data.content,
+        data.chunks,
+        data.filename || null,
+        data.mime || null,
+        data.sizeBytes,
+        data.file || null,
+        data.pageCount,
+        data.status,
+        data.summary || null,
+        data.published,
+        data.error || null,
+      ],
     );
     return rows[0];
   }
 
   async findDocumentById(id: string): Promise<StoredDocument | null> {
     return this.db.queryOne<StoredDocument>(
-      `SELECT id, company_id AS "companyId", title, content, chunks, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", file, page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM knowledge_documents WHERE id = $1`,
       [id],
     );
@@ -418,7 +442,7 @@ export class StoreService {
 
   async findDocumentsByCompany(companyId: string): Promise<StoredDocument[]> {
     return this.db.query<StoredDocument>(
-      `SELECT id, company_id AS "companyId", title, content, chunks, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM knowledge_documents WHERE company_id = $1 ORDER BY created_at DESC`,
       [companyId],
     );
@@ -431,11 +455,46 @@ export class StoreService {
       [companyId],
     );
     const rows = await this.db.query<StoredDocument>(
-      `SELECT id, company_id AS "companyId", title, content, chunks, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"
        FROM knowledge_documents WHERE company_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
       [companyId, limit, offset],
     );
     return { items: rows, total: countRow?.count ?? 0, page, perPage: limit };
+  }
+
+  async findPublishedDocuments(companyId: string): Promise<StoredDocument[]> {
+    return this.db.query<StoredDocument>(
+      `SELECT id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM knowledge_documents WHERE company_id = $1 AND published = true ORDER BY created_at DESC`,
+      [companyId],
+    );
+  }
+
+  async updateDocument(id: string, data: Partial<StoredDocument>): Promise<StoredDocument | null> {
+    const sets: string[] = ['updated_at = now()'];
+    const params: any[] = [id];
+    let i = 2;
+    const fields: Record<string, string> = {
+      title: 'title',
+      content: 'content',
+      pageCount: 'page_count',
+      status: 'status',
+      summary: 'summary',
+      published: 'published',
+      error: 'error',
+    };
+    const dataAny = data as Record<string, any>;
+    for (const [key, col] of Object.entries(fields)) {
+      if (dataAny[key] !== undefined) {
+        sets.push(`${col} = $${i++}`);
+        params.push(dataAny[key]);
+      }
+    }
+    return this.db.queryOne<StoredDocument>(
+      `UPDATE knowledge_documents SET ${sets.join(', ')} WHERE id = $1
+       RETURNING id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      params,
+    );
   }
 
   async countDocumentsByCompany(companyId: string): Promise<number> {
@@ -472,14 +531,79 @@ export class StoreService {
 
   async searchChunks(companyId: string, embedding: number[], limit = 5, threshold = 0.35) {
     return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
+      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId",
+              ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4) AS similarity
+       FROM knowledge_chunks kc
+       JOIN knowledge_documents kd ON kd.id = kc.document_id
+       WHERE kc.company_id = $1 AND kc.embedding IS NOT NULL AND kd.published = true
+         AND (1 - (kc.embedding <=> $2::vector)) >= $3
+       ORDER BY kc.embedding <=> $2::vector
+       LIMIT $4`,
+      [companyId, JSON.stringify(embedding), threshold, limit],
+    );
+  }
+
+  async searchChunksByDocument(documentId: string, embedding: number[], limit = 5, threshold = 0.25) {
+    return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
       `SELECT id, chunk_text AS "chunkText", document_id AS "documentId",
-               ROUND((1 - (embedding <=> $2::vector))::numeric, 4) AS similarity
+              ROUND((1 - (embedding <=> $2::vector))::numeric, 4) AS similarity
        FROM knowledge_chunks
-       WHERE company_id = $1 AND embedding IS NOT NULL
+       WHERE document_id = $1 AND embedding IS NOT NULL
          AND (1 - (embedding <=> $2::vector)) >= $3
        ORDER BY embedding <=> $2::vector
        LIMIT $4`,
+      [documentId, JSON.stringify(embedding), threshold, limit],
+    );
+  }
+
+  async searchChunksByDocumentKeyword(documentId: string, terms: string[], limit = 5) {
+    if (!terms.length) return [];
+    const params: any[] = [documentId];
+    const conds = terms.map((_, i) => {
+      params.push(`%${terms[i]}%`);
+      return `kc.chunk_text ILIKE $${i + 2}`;
+    });
+    const rank = terms.map((_, i) => `(kc.chunk_text ILIKE $${i + 2})::int`);
+    return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
+      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", 1 AS similarity
+       FROM knowledge_chunks kc
+       WHERE kc.document_id = $1 AND (${conds.join(' OR ')})
+       ORDER BY (${rank.join(' + ')}) DESC, kc.chunk_index ASC
+       LIMIT $${params.length + 1}`,
+      [...params, limit],
+    );
+  }
+
+  async searchChunksPublished(companyId: string, embedding: number[], limit = 6, threshold = 0.25) {
+    return this.db.query<{ id: string; chunkText: string; documentId: string; documentTitle: string; similarity: number }>(
+      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", kd.title AS "documentTitle",
+              ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4) AS similarity
+       FROM knowledge_chunks kc
+       JOIN knowledge_documents kd ON kd.id = kc.document_id
+       WHERE kc.company_id = $1 AND kc.embedding IS NOT NULL AND kd.published = true
+         AND (1 - (kc.embedding <=> $2::vector)) >= $3
+       ORDER BY kc.embedding <=> $2::vector
+       LIMIT $4`,
       [companyId, JSON.stringify(embedding), threshold, limit],
+    );
+  }
+
+  async searchChunksPublishedKeyword(companyId: string, terms: string[], limit = 6) {
+    if (!terms.length) return [];
+    const params: any[] = [companyId];
+    const conds = terms.map((_, i) => {
+      params.push(`%${terms[i]}%`);
+      return `kc.chunk_text ILIKE $${i + 2}`;
+    });
+    const rank = terms.map((_, i) => `(kc.chunk_text ILIKE $${i + 2})::int`);
+    return this.db.query<{ id: string; chunkText: string; documentId: string; documentTitle: string; similarity: number }>(
+      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", kd.title AS "documentTitle", 1 AS similarity
+       FROM knowledge_chunks kc
+       JOIN knowledge_documents kd ON kd.id = kc.document_id
+       WHERE kc.company_id = $1 AND kd.published = true AND (${conds.join(' OR ')})
+       ORDER BY (${rank.join(' + ')}) DESC, kc.chunk_index ASC
+       LIMIT $${params.length + 1}`,
+      [...params, limit],
     );
   }
 
@@ -489,7 +613,7 @@ export class StoreService {
                ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4) AS similarity
        FROM knowledge_chunks kc
        JOIN knowledge_documents kd ON kd.id = kc.document_id
-       WHERE kc.company_id = $1 AND kc.embedding IS NOT NULL
+       WHERE kc.company_id = $1 AND kc.embedding IS NOT NULL AND kd.published = true
        ORDER BY kc.embedding <=> $2::vector
        LIMIT $3`,
       [companyId, JSON.stringify(embedding), limit],

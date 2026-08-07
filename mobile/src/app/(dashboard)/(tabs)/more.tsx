@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons'
 
 const sections = [
   { key: 'analytics', label: 'Analytics', desc: 'Track performance metrics', icon: 'stats-chart-outline', color: Colors.blue },
+  { key: 'ask', label: 'Ask Documents', desc: 'Ask questions with cited sources', icon: 'chatbubble-ellipses-outline', color: Colors.purple },
+  { key: 'summary', label: 'Summaries', desc: 'Generate document summaries', icon: 'sparkles-outline', color: Colors.orange },
   { key: 'knowledge', label: 'Knowledge Base', desc: 'Manage your AI training docs', icon: 'document-text-outline', color: Colors.green },
   { key: 'team', label: 'Team', desc: 'Invite and manage agents', icon: 'shield-outline', color: Colors.purple },
   { key: 'guide', label: 'Guide', desc: 'How to use every feature', icon: 'compass-outline', color: Colors.slate },
@@ -48,7 +50,7 @@ export default function MoreScreen() {
             <TouchableOpacity
               key={section.key}
               activeOpacity={0.8}
-              onPress={() => router.push(`/(dashboard)/${section.key}`)}
+              onPress={() => router.push(`/(dashboard)/${section.key}` as any)}
               style={styles.row}
             >
               <View style={[styles.iconBox, { backgroundColor: `${section.color}22` }]}>

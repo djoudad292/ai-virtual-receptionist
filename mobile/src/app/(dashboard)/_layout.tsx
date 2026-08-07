@@ -17,6 +17,8 @@ export default function DashboardLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="analytics" />
       <Stack.Screen name="knowledge" />
+      <Stack.Screen name="ask" />
+      <Stack.Screen name="summary" />
       <Stack.Screen name="team" />
       <Stack.Screen name="guide" />
       <Stack.Screen name="settings" />

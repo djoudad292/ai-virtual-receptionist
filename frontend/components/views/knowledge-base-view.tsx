@@ -2,16 +2,22 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch, paginate } from '@/lib/api'
+import { apiFetch, paginate, downloadFile, formatBytes } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import ConfirmDialog from '@/components/confirm-dialog'
-import { Plus, Trash2, RefreshCw, Search, Loader2, X, Upload, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Search, Loader2, X, Upload, ChevronLeft, ChevronRight, Download, Globe } from 'lucide-react'
 
 interface Document {
   id: string
   title: string
   content: string
   createdAt: string
+  filename?: string | null
+  sizeBytes?: number
+  pageCount?: number
+  status?: string
+  published?: boolean
+  summary?: string | null
 }
 
 const PAGE_SIZE = 20
@@ -63,15 +69,18 @@ export default function KnowledgeBaseView() {
     e.target.value = ''
     if (!file) return
     const ext = file.name.split('.').pop()?.toLowerCase()
-    if (ext !== 'txt' && ext !== 'md' && ext !== 'markdown') {
-      addToast('Please choose a .txt or .md file', 'error')
+    if (ext !== 'txt' && ext !== 'md' && ext !== 'markdown' && ext !== 'pdf') {
+      addToast('Please choose a .txt, .md or .pdf file', 'error')
       return
     }
-    if (file.size > 2 * 1024 * 1024) {
-      addToast('File must be under 2MB', 'error')
+    const isPdf = ext === 'pdf'
+    const maxSize = isPdf ? 10 * 1024 * 1024 : 2 * 1024 * 1024
+    if (file.size > maxSize) {
+      addToast(isPdf ? 'PDF must be under 10MB' : 'File must be under 2MB', 'error')
       return
     }
     setUploading(true)
+    if (isPdf) addToast('Parsing PDF… this can take a few seconds', 'info')
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -129,6 +138,29 @@ export default function KnowledgeBaseView() {
     }
   }
 
+  const togglePublished = async (doc: Document) => {
+    const next = !doc.published
+    setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, published: next } : d)))
+    try {
+      await apiFetch(`/knowledge-base/${doc.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ published: next }),
+      })
+      addToast(next ? 'Document published to the chat widget' : 'Document hidden from the chat widget', 'success')
+    } catch {
+      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, published: !next } : d)))
+      addToast('Failed to update document', 'error')
+    }
+  }
+
+  const handleDownload = async (doc: Document) => {
+    try {
+      await downloadFile(`/knowledge-base/${doc.id}/download`, doc.filename || doc.title)
+    } catch {
+      addToast('No original file stored for this document', 'error')
+    }
+  }
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
     setSearching(true)
@@ -155,14 +187,14 @@ export default function KnowledgeBaseView() {
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <input ref={fileInputRef} type="file" accept=".txt,.md,.markdown" className="hidden" onChange={handleFileUpload} />
+          <input ref={fileInputRef} type="file" accept=".txt,.md,.markdown,.pdf,application/pdf" className="hidden" onChange={handleFileUpload} />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary transition-colors disabled:opacity-50 sm:flex-none"
           >
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Upload .txt/.md
+            Upload .pdf/.txt/.md
           </button>
           <button
             onClick={() => setShowModal(true)}
@@ -224,12 +256,48 @@ export default function KnowledgeBaseView() {
             {docs.map((doc) => (
               <div key={doc.id} className="flex items-center justify-between px-5 py-4">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{doc.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-foreground truncate">{doc.title}</p>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        doc.status === 'ready'
+                          ? 'bg-green-500/10 text-green-400'
+                          : doc.status === 'error'
+                            ? 'bg-red-500/10 text-red-400'
+                            : 'bg-yellow-500/10 text-yellow-400'
+                      }`}
+                    >
+                      {doc.status || 'ready'}
+                    </span>
+                    {doc.published !== false && (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        Published
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Added {new Date(doc.createdAt).toLocaleDateString()}
+                    {doc.filename && <span className="ml-1">· {doc.filename}</span>}
+                    {doc.pageCount ? <span> · {doc.pageCount} pages</span> : null}
+                    {doc.sizeBytes ? <span> · {formatBytes(doc.sizeBytes)}</span> : null}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-4">
+                  <button
+                    onClick={() => togglePublished(doc)}
+                    className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    aria-label={doc.published !== false ? `Unpublish ${doc.title}` : `Publish ${doc.title}`}
+                    title={doc.published !== false ? 'Visible in chat widget — click to hide' : 'Hidden from chat widget — click to publish'}
+                  >
+                    <Globe className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDownload(doc)}
+                    className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    aria-label={`Download ${doc.title}`}
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={() => reindexDocument(doc.id)}
                     className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"

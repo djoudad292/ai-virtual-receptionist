@@ -18,6 +18,7 @@
   var isConnected = false;
   var unreadCount = 0;
   var typingTimer = null;
+  var publishedDocs = [];
 
   var root;
   var bubble;
@@ -29,6 +30,7 @@
   var statusDot;
   var badgeEl;
   var connectionBanner;
+  var docStrip;
 
   var SOCKET_CDN = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
 
@@ -97,6 +99,15 @@
       '#ai-widget-root .ai-connection-banner.lost { background:#fee2e2; color:#b91c1c; }',
       '#ai-widget-root .ai-connection-banner.reconnect { background:#fef3c7; color:#92400e; }',
       '#ai-widget-root .ai-messages { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; background:#f8fafc; }',
+      '#ai-widget-root .ai-docstrip { flex-shrink:0; background:#fff; border-bottom:1px solid #e2e8f0; padding:10px 16px; display:flex; gap:8px; flex-wrap:wrap; }',
+      '#ai-widget-root .ai-docstrip-empty { font-size:12px; color:#94a3b8; padding:2px 0; }',
+      '#ai-widget-root .ai-docchip {',
+      '  border:1px solid #e2e8f0; background:#f8fafc; color:#475569;',
+      '  font-size:12px; font-weight:600; border-radius:999px; padding:5px 11px;',
+      '  cursor:pointer; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;',
+      '  transition:background .15s, border-color .15s;',
+      '}',
+      '#ai-widget-root .ai-docchip:hover { background:' + p + '14; border-color:' + p + '66; color:#1e293b; }',
       '#ai-widget-root .ai-msg { max-width:82%; padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.45; word-wrap:break-word; animation:fadeIn .2s; }',
       '#ai-widget-root .ai-msg.user { align-self:flex-end; background:' + p + '; color:#fff; border-bottom-' + opp + '-radius:4px; }',
       '#ai-widget-root .ai-msg.bot { align-self:flex-start; background:#e2e8f0; color:#1e293b; border-bottom-' + side + '-radius:4px; }',
@@ -205,6 +216,12 @@
     connectionBanner = document.createElement('div');
     connectionBanner.className = 'ai-connection-banner';
     panel.appendChild(connectionBanner);
+
+    /* published documents strip */
+    docStrip = document.createElement('div');
+    docStrip.className = 'ai-docstrip';
+    docStrip.style.display = 'none';
+    panel.appendChild(docStrip);
 
     /* messages */
     msgContainer = document.createElement('div');
@@ -352,6 +369,32 @@
     div.textContent = msg;
     msgContainer.insertBefore(div, typingEl);
     scrollBottom();
+  }
+
+  /* ---- published documents strip ---- */
+  function renderDocStrip() {
+    if (!docStrip) return;
+    docStrip.textContent = '';
+    if (publishedDocs.length === 0) {
+      var empty = document.createElement('span');
+      empty.className = 'ai-docstrip-empty';
+      empty.textContent = 'No documents published yet.';
+      docStrip.appendChild(empty);
+      docStrip.style.display = 'flex';
+      return;
+    }
+    docStrip.style.display = 'flex';
+    publishedDocs.forEach(function (doc) {
+      var chip = document.createElement('button');
+      chip.className = 'ai-docchip';
+      chip.textContent = doc.title;
+      chip.title = 'Ask about ' + doc.title;
+      chip.addEventListener('click', function () {
+        inputEl.value = 'Tell me about ' + doc.title;
+        inputEl.focus();
+      });
+      docStrip.appendChild(chip);
+    });
   }
 
   /* ---- socket.io loader ---- */
@@ -552,6 +595,7 @@
           title = cfg.title || title;
           if (cfg.color) primaryColor = cfg.color;
           if (cfg.position === 'left' || cfg.position === 'right') position = cfg.position;
+          if (Array.isArray(cfg.documents)) publishedDocs = cfg.documents;
         }
       } catch (e) {}
       cb();
@@ -569,6 +613,7 @@
     fetchConfig(function () {
       injectStyles();
       createDOM();
+      renderDocStrip();
       setConnected(false);
       connect();
     });

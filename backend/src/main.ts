@@ -74,6 +74,14 @@ async function seedDemoData(store: StoreService, ai: AIService, logger: Logger) 
           title: 'Company Info',
           content,
           chunks: [content],
+          filename: null,
+          mime: null,
+          sizeBytes: 0,
+          file: null,
+          pageCount: 0,
+          status: 'ready',
+          published: true,
+          error: null,
         });
         const embedding = await ai.generateEmbedding(content);
         await store.insertChunk({

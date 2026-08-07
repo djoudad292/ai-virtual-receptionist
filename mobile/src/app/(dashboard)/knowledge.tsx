@@ -2,7 +2,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Alert, RefreshControl } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
-import { apiFetch, paginate, formatDate } from '@/lib/api'
+import { File, Directory, Paths } from 'expo-file-system'
+import * as Sharing from 'expo-sharing'
+import { apiFetch, paginate, formatDate, getApiUrl, getToken } from '@/lib/api'
 import { Screen, Card, Spinner, EmptyState, Button, ModalView, Field } from '@/components/ui'
 import { StackHeader } from '@/components/stack-header'
 import { Colors } from '@/lib/theme'
@@ -14,10 +16,16 @@ interface Document {
   content?: string
   chunkCount?: number
   createdAt: string
+  filename?: string | null
+  sizeBytes?: number
+  pageCount?: number
+  status?: string
+  published?: boolean
 }
 
 const PAGE_SIZE = 20
 const MAX_FILE_SIZE = 2 * 1024 * 1024
+const MAX_PDF_SIZE = 10 * 1024 * 1024
 
 export default function KnowledgeScreen() {
   const router = useRouter()
@@ -92,25 +100,26 @@ export default function KnowledgeScreen() {
   const uploadDoc = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/plain', 'text/markdown'],
+        type: ['text/plain', 'text/markdown', 'application/pdf'],
         copyToCacheDirectory: true,
       })
       if (result.canceled || !result.assets?.length) return
       const asset = result.assets[0]
       const ext = (asset.name || '').split('.').pop()?.toLowerCase()
-      if (ext !== 'txt' && ext !== 'md' && ext !== 'markdown') {
-        Alert.alert('Unsupported file', 'Please choose a .txt or .md file.')
+      const isPdf = ext === 'pdf'
+      if (!ext || !['txt', 'md', 'markdown', 'pdf'].includes(ext)) {
+        Alert.alert('Unsupported file', 'Please choose a .txt, .md or .pdf file.')
         return
       }
-      if (asset.size && asset.size > MAX_FILE_SIZE) {
-        Alert.alert('File too large', 'The file must be under 2MB.')
+      if (asset.size && asset.size > (isPdf ? MAX_PDF_SIZE : MAX_FILE_SIZE)) {
+        Alert.alert('File too large', isPdf ? 'The PDF must be under 10MB.' : 'The file must be under 2MB.')
         return
       }
       const form = new FormData()
       const file: any = {
         uri: asset.uri,
         name: asset.name || 'document.txt',
-        type: asset.mimeType || 'text/plain',
+        type: asset.mimeType || (isPdf ? 'application/pdf' : 'text/plain'),
       }
       form.append('file', file)
       setUploading(true)
@@ -154,6 +163,48 @@ export default function KnowledgeScreen() {
       Alert.alert('Re-indexed', `"${doc.title}" was re-indexed.`)
     } catch (e: any) {
       setError(e?.message || 'Failed to reindex document')
+    }
+  }
+
+  const togglePublished = async (doc: Document) => {
+    const next = !doc.published
+    setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, published: next } : d)))
+    try {
+      await apiFetch(`/knowledge-base/${doc.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ published: next }),
+      })
+      Alert.alert('Updated', next ? 'Document published to the chat widget.' : 'Document hidden from the chat widget.')
+    } catch (e: any) {
+      setDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, published: !next } : d)))
+      setError(e?.message || 'Failed to update document')
+    }
+  }
+
+  const downloadDoc = async (doc: Document) => {
+    try {
+      const token = await getToken()
+      const file = await File.downloadFileAsync(
+        `${getApiUrl()}/knowledge-base/${doc.id}/download`,
+        new Directory(Paths.cache),
+        {
+          idempotent: true,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        }
+      )
+      const available = await Sharing.isAvailableAsync()
+      if (available) {
+        await Sharing.shareAsync(file.uri, { mimeType: file.type || 'application/octet-stream', dialogTitle: doc.filename || doc.title })
+      } else {
+        Alert.alert('Downloaded', `File saved to cache: ${file.uri}`)
+      }
+    } catch (e: any) {
+      const msg = e?.message || ''
+      if (msg.includes('404')) {
+        setError('No original file stored for this document')
+      } else {
+        setError(msg || 'Failed to download file')
+      }
     }
   }
 
@@ -230,7 +281,7 @@ export default function KnowledgeScreen() {
           <EmptyState
             icon={<Ionicons name="document-text-outline" size={40} color={Colors.slate} />}
             title="No documents yet"
-            subtitle="Add facts, FAQs or product info so the AI can answer visitors accurately. Supports .txt, .md and .markdown files."
+            subtitle="Add facts, FAQs or product info so the AI can answer visitors accurately. Supports .txt, .md, .markdown and .pdf files."
           />
         </Card>
       ) : (
@@ -243,13 +294,31 @@ export default function KnowledgeScreen() {
             renderItem={({ item }) => (
               <View style={styles.row}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: Colors.foreground, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
-                    {item.title}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ color: Colors.foreground, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    {item.status === 'ready' ? (
+                      <Ionicons name="checkmark-circle" size={14} color={Colors.green} />
+                    ) : item.status === 'error' ? (
+                      <Ionicons name="alert-circle" size={14} color={Colors.red} />
+                    ) : null}
+                  </View>
                   <Text style={{ color: Colors.mutedForeground, fontSize: 12, marginTop: 3 }}>
                     {item.chunkCount ? `${item.chunkCount} chunks · ` : ''}Added {formatDate(item.createdAt)}
+                    {item.pageCount ? ` · ${item.pageCount} pages` : ''}
                   </Text>
                 </View>
+                <TouchableOpacity onPress={() => togglePublished(item)} style={styles.iconBtn} hitSlop={8}>
+                  <Ionicons
+                    name={item.published !== false ? 'globe-outline' : 'eye-off-outline'}
+                    size={18}
+                    color={item.published !== false ? Colors.blue : Colors.mutedForeground}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => downloadDoc(item)} style={styles.iconBtn} hitSlop={8}>
+                  <Ionicons name="download-outline" size={18} color={Colors.green} />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => reindexDoc(item)} style={styles.iconBtn} hitSlop={8}>
                   <Ionicons name="refresh-outline" size={18} color={Colors.blue} />
                 </TouchableOpacity>

@@ -59,6 +59,46 @@ export function getApiUrl() {
   return API_URL
 }
 
+export function formatBytes(bytes: number) {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+export function formatDate(dateStr?: string) {
+  if (!dateStr) return '—'
+  return new Date(dateStr).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+// Downloads a binary file with the auth token attached (JSON helpers won't work).
+export async function downloadFile(path: string, fallbackName = 'download') {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: 'Download failed' }))
+    throw new Error(error.message || 'Download failed')
+  }
+  const blob = await res.blob()
+  const disposition = res.headers.get('Content-Disposition') || ''
+  const match = /filename="([^"]+)"/.exec(disposition)
+  const name = match ? decodeURIComponent(match[1]) : fallbackName
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function getSocketUrl() {
   return process.env.NEXT_PUBLIC_WS_URL || API_URL
 }

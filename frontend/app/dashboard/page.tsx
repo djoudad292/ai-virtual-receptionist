@@ -11,6 +11,8 @@ import { TABS, type Tab } from '@/lib/workspace'
 import OverviewView from '@/components/views/overview-view'
 import InboxView from '@/components/views/inbox-view'
 import KnowledgeBaseView from '@/components/views/knowledge-base-view'
+import AskView from '@/components/views/ask-view'
+import SummariesView from '@/components/views/summaries-view'
 import LeadsView from '@/components/views/leads-view'
 import AppointmentsView from '@/components/views/appointments-view'
 import AnalyticsView from '@/components/views/analytics-view'
@@ -65,6 +67,8 @@ export default function DashboardPage() {
           {activeTab === 'overview' && <OverviewView onNavigate={setActiveTab} />}
           {activeTab === 'inbox' && <InboxView />}
           {activeTab === 'knowledge' && <KnowledgeBaseView />}
+          {activeTab === 'ask' && <AskView />}
+          {activeTab === 'summaries' && <SummariesView />}
           {activeTab === 'leads' && <LeadsView />}
           {activeTab === 'appointments' && <AppointmentsView />}
           {activeTab === 'analytics' && <AnalyticsView />}

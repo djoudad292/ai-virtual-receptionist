@@ -9,13 +9,19 @@
     "test": "jest --runInBand"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
@@ -38,6 +44,7 @@
     "nodemailer": "^9.0.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdf-parse": "^1.1.4",
     "pg": "^8.12.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
@@ -55,6 +62,7 @@
     "@types/node": "^22.4.1",
     "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.11.6",
     "@types/supertest": "^7.2.1",
     "jest": "^30.4.2",

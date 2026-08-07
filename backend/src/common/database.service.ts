@@ -62,6 +62,15 @@ const SCHEMA_STATEMENTS: string[] = [
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
   )`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS filename TEXT`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS mime TEXT`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS size_bytes INT DEFAULT 0`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS file BYTEA`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS page_count INT DEFAULT 0`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ready'`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS summary TEXT`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS published BOOLEAN DEFAULT true`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS error TEXT`,
   `CREATE TABLE IF NOT EXISTS knowledge_chunks (
     id TEXT PRIMARY KEY,
     document_id TEXT NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,

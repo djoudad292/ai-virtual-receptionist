@@ -12,6 +12,7 @@ build/
 .next/
 out/
 *.tsbuildinfo
+.netlify/
 
 # Logs
 npm-debug.log*
