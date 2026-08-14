@@ -39,6 +39,14 @@
   var isListening = false;
   var speechSupported = typeof window.speechSynthesis !== 'undefined';
   var currentUtterance = null;
+  var inputRowEl;
+  var callBtn;
+  var callScreen;
+  var callStatusEl;
+  var callMicEl;
+  var callEndEl;
+  var inCall = false;
+  var voice = null;
 
   var SOCKET_CDN = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
 
@@ -164,6 +172,23 @@
       '#ai-widget-root .ai-speak-btn:hover { background:#f3f4f6; color:' + p + '; }',
       '#ai-widget-root .ai-speak-btn.speaking { background:' + p + '; color:#fff; animation:ai-pulse 1s infinite; }',
       '#ai-widget-root .ai-speak-btn svg { width:14px; height:14px; fill:currentColor; }',
+      '#ai-widget-root .ai-call-btn { background:rgba(255,255,255,.2); border:none; color:#fff; width:28px; height:28px; border-radius:6px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }',
+      '#ai-widget-root .ai-call-btn:hover { background:rgba(255,255,255,.35); }',
+      '#ai-widget-root .ai-call-btn svg { width:15px; height:15px; fill:currentColor; }',
+      '#ai-widget-root .ai-callscreen { position:absolute; inset:0; z-index:30; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:linear-gradient(160deg,#0f172a,#1e293b); color:#fff; border-radius:16px; padding:24px; text-align:center; }',
+      '#ai-widget-root .ai-callscreen.open { display:flex; }',
+      '#ai-widget-root .ai-call-avatar { width:84px; height:84px; border-radius:50%; background:' + p + '; display:flex; align-items:center; justify-content:center; box-shadow:0 0 0 0 ' + p + '88; animation:ai-ring 1.6s infinite; }',
+      '#ai-widget-root .ai-call-avatar svg { width:40px; height:40px; fill:#fff; }',
+      '#ai-widget-root .ai-call-title { font-size:17px; font-weight:600; }',
+      '#ai-widget-root .ai-call-status { font-size:13px; opacity:.75; min-height:18px; }',
+      '#ai-widget-root .ai-call-controls { display:flex; gap:22px; align-items:center; margin-top:8px; }',
+      '#ai-widget-root .ai-call-mic { width:64px; height:64px; border-radius:50%; border:none; background:rgba(255,255,255,.14); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }',
+      '#ai-widget-root .ai-call-mic svg { width:28px; height:28px; fill:currentColor; }',
+      '#ai-widget-root .ai-call-mic.active { background:' + p + '; animation:ai-ring 1.4s infinite; }',
+      '#ai-widget-root .ai-call-end { width:60px; height:60px; border-radius:50%; border:none; background:#ef4444; color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; }',
+      '#ai-widget-root .ai-call-end svg { width:24px; height:24px; fill:currentColor; }',
+      '@keyframes ai-ring { 0%{box-shadow:0 0 0 0 ' + p + '66} 70%{box-shadow:0 0 0 22px ' + p + '00} 100%{box-shadow:0 0 0 0 ' + p + '00} }',
+      '@media (max-width:480px) { #ai-widget-root .ai-callscreen { border-radius:16px; } }',
       '@media (max-width:480px) {',
       '  #ai-widget-root .ai-panel {',
       '    ' + side + ':0; bottom:0; top:auto;',
@@ -236,8 +261,15 @@
     mini.setAttribute('aria-label', 'Minimize');
     mini.textContent = '−';
     mini.addEventListener('click', toggle);
+    callBtn = document.createElement('button');
+    callBtn.className = 'ai-call-btn';
+    callBtn.setAttribute('aria-label', 'Voice call');
+    callBtn.innerHTML =
+      '<svg viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.61 21 3 13.39 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.24.2 2.45.57 3.57a1 1 0 0 1-.24 1.02l-2.21 2.2z"/></svg>';
+    callBtn.addEventListener('click', toggleCall);
     hdr.appendChild(h3);
     hdr.appendChild(st);
+    hdr.appendChild(callBtn);
     hdr.appendChild(mini);
     panel.appendChild(hdr);
 
@@ -275,6 +307,7 @@
     /* input */
     var row = document.createElement('div');
     row.className = 'ai-input-row';
+    inputRowEl = row;
     inputEl = document.createElement('input');
     inputEl.type = 'text';
     inputEl.placeholder = 'Type a message…';
@@ -304,6 +337,49 @@
       row.insertBefore(micBtn, sendBtn);
     }
     panel.appendChild(row);
+
+    /* voice call screen */
+    callScreen = document.createElement('div');
+    callScreen.className = 'ai-callscreen';
+    var av = document.createElement('div');
+    av.className = 'ai-call-avatar';
+    av.innerHTML =
+      '<svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
+    var ct = document.createElement('div');
+    ct.className = 'ai-call-title';
+    ct.textContent = title;
+    callStatusEl = document.createElement('div');
+    callStatusEl.className = 'ai-call-status';
+    callStatusEl.textContent = 'Starting…';
+    var cc = document.createElement('div');
+    cc.className = 'ai-call-controls';
+    callMicEl = document.createElement('button');
+    callMicEl.className = 'ai-call-mic';
+    callMicEl.setAttribute('aria-label', 'Toggle microphone');
+    callMicEl.innerHTML =
+      '<svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
+    callMicEl.addEventListener('click', function () {
+      if (isListening) {
+        stopVoiceInput();
+        setCallStatus('Mic paused — tap mic to resume');
+        callMicEl.classList.remove('active');
+      } else {
+        startRecognition();
+      }
+    });
+    callEndEl = document.createElement('button');
+    callEndEl.className = 'ai-call-end';
+    callEndEl.setAttribute('aria-label', 'End call');
+    callEndEl.innerHTML =
+      '<svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.39.38.39 1.04 0 1.42l-2.48 2.48a.996.996 0 0 1-1.41 0c-.79-.73-1.68-1.36-2.66-1.85a.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>';
+    callEndEl.addEventListener('click', endCall);
+    cc.appendChild(callMicEl);
+    cc.appendChild(callEndEl);
+    callScreen.appendChild(av);
+    callScreen.appendChild(ct);
+    callScreen.appendChild(callStatusEl);
+    callScreen.appendChild(cc);
+    panel.appendChild(callScreen);
 
     root.appendChild(panel);
     document.body.appendChild(root);
@@ -340,6 +416,7 @@
     isOpen = false;
     panel.classList.remove('open');
     lockScroll(false);
+    if (inCall) endCall();
     stopVoiceInput();
     stopSpeak();
   }
@@ -551,6 +628,7 @@
           };
           messages.push(msg);
           addMessage(msg);
+          if (inCall && content) callSpeak(content);
           if (data.appointment && data.appointment.date) {
             notify('Appointment requested: ' + (data.appointment.date || '') + (data.appointment.time ? ' at ' + data.appointment.time : '') + '. We will confirm shortly.');
           } else if (data.lead && (data.lead.email || data.lead.phone)) {
@@ -679,11 +757,25 @@
       if (last.isFinal) {
         var text = inputEl.value.trim();
         stopVoiceInput();
+        if (inCall) {
+          callMicEl.classList.remove('active');
+          setCallStatus('Thinking…');
+        }
         if (text && isConnected && socket) sendMessage();
       }
     };
     r.onerror = function (e) {
       stopVoiceInput();
+      if (inCall) {
+        if (e.error === 'no-speech') {
+          setTimeout(function () { if (inCall) startRecognition(); }, 350);
+        } else if (e.error !== 'aborted') {
+          callMicEl.classList.remove('active');
+          setCallStatus('Mic error — tap mic to retry');
+          notify('Voice input error: ' + e.error);
+        }
+        return;
+      }
       if (e.error && e.error !== 'aborted' && e.error !== 'no-speech') {
         notify('Voice input error: ' + e.error);
       }
@@ -762,6 +854,88 @@
     currentUtterance = u;
     btn.classList.add('speaking');
     try { window.speechSynthesis.speak(u); } catch (e) { btn.classList.remove('speaking'); }
+  }
+
+  /* ---- voice call mode (Gemini/ChatGPT-style hands-free) ---- */
+  function setCallStatus(txt) { if (callStatusEl) callStatusEl.textContent = txt; }
+
+  function pickVoice() {
+    if (voice) return voice;
+    try {
+      var vs = window.speechSynthesis.getVoices();
+      for (var i = 0; i < vs.length; i++) {
+        if ((vs[i].lang || '').toLowerCase().indexOf('en') === 0) { voice = vs[i]; break; }
+      }
+      if (!voice && vs.length) voice = vs[0];
+    } catch (e) {}
+    return voice;
+  }
+  if (speechSupported) {
+    try { window.speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
+    try { pickVoice(); } catch (e) {}
+  }
+
+  function toggleCall() {
+    if (inCall) endCall();
+    else startCall();
+  }
+
+  function startCall() {
+    if (inCall) return;
+    if (!micSupported) { notify('Voice call is not supported in this browser.'); return; }
+    if (!isConnected || !socket) { notify('Please wait, still connecting…'); return; }
+    inCall = true;
+    if (inputRowEl) inputRowEl.style.display = 'none';
+    callScreen.classList.add('open');
+    setCallStatus('Starting…');
+    var greeting = 'Hello! I am ' + title + '. How can I help you?';
+    addMessage({ content: greeting, senderType: 'bot', timestamp: timeStr() });
+    callSpeak(greeting);
+  }
+
+  function endCall() {
+    if (!inCall) return;
+    inCall = false;
+    stopVoiceInput();
+    stopSpeak();
+    callScreen.classList.remove('open');
+    if (inputRowEl) inputRowEl.style.display = '';
+    if (callMicEl) callMicEl.classList.remove('active');
+    setCallStatus('');
+  }
+
+  function startRecognition() {
+    if (!micSupported || !inCall || isListening) return;
+    stopSpeak();
+    recognition = recognition || createRecognition();
+    if (!recognition) return;
+    isListening = true;
+    if (callMicEl) callMicEl.classList.add('active');
+    setCallStatus('Listening — speak now');
+    try { recognition.start(); } catch (e) {}
+  }
+
+  function callSpeak(text) {
+    if (!speechSupported || !text) return;
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    if (callMicEl) callMicEl.classList.remove('active');
+    setCallStatus('AI is speaking…');
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 1;
+    u.pitch = 1;
+    u.voice = pickVoice();
+    u.onend = function () {
+      if (inCall) setTimeout(function () { if (inCall) startRecognition(); }, 250);
+    };
+    u.onerror = function () {
+      if (inCall) setTimeout(function () { if (inCall) startRecognition(); }, 250);
+    };
+    try {
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      if (inCall) startRecognition();
+    }
   }
 
   /* ---- init ---- */
