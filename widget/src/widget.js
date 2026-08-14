@@ -32,6 +32,14 @@
   var connectionBanner;
   var docStrip;
 
+  /* ---- voice (STT + TTS) ---- */
+  var micBtn;
+  var micSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  var recognition = null;
+  var isListening = false;
+  var speechSupported = typeof window.speechSynthesis !== 'undefined';
+  var currentUtterance = null;
+
   var SOCKET_CDN = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
 
   /* ---- inject global styles ---- */
@@ -139,6 +147,23 @@
       '}',
       '#ai-widget-root .ai-input-row button:disabled { opacity:.5; cursor:default; }',
       '#ai-widget-root .ai-input-row button svg { width:18px; height:18px; fill:#fff; }',
+      '#ai-widget-root .ai-input-row button.ai-mic-btn {',
+      '  background:transparent; color:#6b7280; border-radius:50%;',
+      '  transition:background .15s, color .15s;',
+      '}',
+      '#ai-widget-root .ai-input-row button.ai-mic-btn:hover { background:#f3f4f6; color:' + p + '; }',
+      '#ai-widget-root .ai-input-row button.ai-mic-btn.listening { background:' + p + '; color:#fff; animation:ai-pulse 1.2s infinite; }',
+      '#ai-widget-root .ai-input-row button.ai-mic-btn svg { fill:currentColor; }',
+      '#ai-widget-root .ai-speak-btn {',
+      '  display:inline-flex; align-items:center; justify-content:center;',
+      '  width:24px; height:24px; border:none; border-radius:50%;',
+      '  background:transparent; color:#9ca3af; cursor:pointer;',
+      '  margin-left:8px; vertical-align:middle;',
+      '  transition:background .15s, color .15s;',
+      '}',
+      '#ai-widget-root .ai-speak-btn:hover { background:#f3f4f6; color:' + p + '; }',
+      '#ai-widget-root .ai-speak-btn.speaking { background:' + p + '; color:#fff; animation:ai-pulse 1s infinite; }',
+      '#ai-widget-root .ai-speak-btn svg { width:14px; height:14px; fill:currentColor; }',
       '@media (max-width:480px) {',
       '  #ai-widget-root .ai-panel {',
       '    ' + side + ':0; bottom:0; top:auto;',
@@ -268,6 +293,16 @@
     sendBtn.addEventListener('click', sendMessage);
     row.appendChild(inputEl);
     row.appendChild(sendBtn);
+    if (micSupported) {
+      micBtn = document.createElement('button');
+      micBtn.type = 'button';
+      micBtn.className = 'ai-mic-btn';
+      micBtn.setAttribute('aria-label', 'Speak');
+      micBtn.innerHTML =
+        '<svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>';
+      micBtn.addEventListener('click', toggleVoiceInput);
+      row.insertBefore(micBtn, sendBtn);
+    }
     panel.appendChild(row);
 
     root.appendChild(panel);
@@ -305,6 +340,8 @@
     isOpen = false;
     panel.classList.remove('open');
     lockScroll(false);
+    stopVoiceInput();
+    stopSpeak();
   }
 
   function scrollBottom() {
@@ -339,6 +376,18 @@
       t2.textContent = msg.timestamp || timeStr();
       div.insertBefore(s, div.firstChild);
       div.appendChild(t2);
+      if (speechSupported && msg.content) {
+        var speakBtn = document.createElement('button');
+        speakBtn.type = 'button';
+        speakBtn.className = 'ai-speak-btn';
+        speakBtn.setAttribute('aria-label', 'Read aloud');
+        speakBtn.innerHTML =
+          '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+        speakBtn.addEventListener('click', function () {
+          toggleSpeak(msg.content, speakBtn);
+        });
+        div.insertBefore(speakBtn, t2);
+      }
       if (Array.isArray(msg.sources) && msg.sources.length) {
         div.appendChild(buildSources(msg.sources));
       }
@@ -613,6 +662,106 @@
     showTyping(true);
     socket.emit('sendMessage', { conversationId: conversationId, content: text, senderType: 'user', companyId: companyId });
     scrollBottom();
+  }
+
+  /* ---- voice input (speech-to-text) ---- */
+  function createRecognition() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    var r = new SR();
+    r.lang = 'en-US';
+    r.interimResults = true;
+    r.continuous = false;
+    r.onresult = function (e) {
+      var last = e.results[e.results.length - 1];
+      inputEl.value = last[0].transcript;
+      scrollBottom();
+      if (last.isFinal) {
+        var text = inputEl.value.trim();
+        stopVoiceInput();
+        if (text && isConnected && socket) sendMessage();
+      }
+    };
+    r.onerror = function (e) {
+      stopVoiceInput();
+      if (e.error && e.error !== 'aborted' && e.error !== 'no-speech') {
+        notify('Voice input error: ' + e.error);
+      }
+    };
+    r.onend = function () {
+      stopVoiceInput();
+    };
+    return r;
+  }
+
+  function toggleVoiceInput() {
+    if (!micSupported) {
+      notify('Voice input is not supported in this browser.');
+      return;
+    }
+    if (isListening) {
+      stopVoiceInput();
+      return;
+    }
+    stopSpeak();
+    recognition = recognition || createRecognition();
+    if (!recognition) return;
+    isListening = true;
+    micBtn.classList.add('listening');
+    inputEl.placeholder = 'Listening…';
+    try { recognition.start(); } catch (e) {}
+  }
+
+  function stopVoiceInput() {
+    isListening = false;
+    if (micBtn) micBtn.classList.remove('listening');
+    if (inputEl) inputEl.placeholder = 'Type a message…';
+    if (recognition) {
+      try { recognition.stop(); } catch (e) {}
+    }
+  }
+
+  /* ---- voice output (text-to-speech) ---- */
+  function stopSpeak() {
+    if (currentUtterance) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+      currentUtterance = null;
+    }
+    syncSpeakButtons();
+  }
+
+  function syncSpeakButtons() {
+    if (!root) return;
+    var btns = root.querySelectorAll('.ai-speak-btn.speaking');
+    for (var i = 0; i < btns.length; i++) btns[i].classList.remove('speaking');
+  }
+
+  function toggleSpeak(text, btn) {
+    if (!speechSupported || !text) return;
+    var isSpeaking = currentUtterance && currentUtterance._speakBtn === btn;
+    if (isSpeaking) {
+      stopSpeak();
+      return;
+    }
+    if (currentUtterance) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+      currentUtterance = null;
+    }
+    var u = new SpeechSynthesisUtterance(text);
+    u.rate = 1;
+    u.pitch = 1;
+    u._speakBtn = btn;
+    u.onend = function () {
+      currentUtterance = null;
+      btn.classList.remove('speaking');
+    };
+    u.onerror = function () {
+      currentUtterance = null;
+      btn.classList.remove('speaking');
+    };
+    currentUtterance = u;
+    btn.classList.add('speaking');
+    try { window.speechSynthesis.speak(u); } catch (e) { btn.classList.remove('speaking'); }
   }
 
   /* ---- init ---- */
