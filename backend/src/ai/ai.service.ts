@@ -331,6 +331,10 @@ export class AIService {
       if (intent === 'other' && this.looksLikeAppointment(userMessage)) {
         intent = 'appointment';
       }
+      // Safety net: never hand off to a human unless the visitor explicitly asks for one.
+      if (intent === 'escalate' && !this.visitorWantsHuman(userMessage, history)) {
+        intent = 'other';
+      }
     } else {
       // No LLM / unparseable -> deterministic fallback
       response = this.fallbackReply(context);
@@ -479,8 +483,8 @@ If the context does not contain the answer, draft a short reply that asks for cl
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const contextPart = context
-      ? `You answer ONLY from the knowledge base context below. If the context does not contain the answer, say you don't have that information and offer to connect them with a human. Never invent or guess facts.\n\nContext:\n${context}`
-      : 'No knowledge base documents are published for this company yet. Do NOT answer from general knowledge and do NOT invent facts about the company. If asked about company-specific information, say you do not have that information yet and offer to connect them with a human (set intent to "escalate"). You may still respond warmly to greetings and small talk.';
+      ? `You answer from the knowledge base context below whenever it covers the question. If the context does not contain the answer, still respond helpfully and conversationally using your general knowledge — for a demo you are expected to answer and keep the conversation going. Never claim a company fact you do not know.\n\nContext:\n${context}`
+      : 'There is no knowledge base content for this company yet. This is a demo: answer every question helpfully and conversationally using general knowledge, as a polished receptionist would. Never claim specific company prices, hours, or policies you do not know — instead be friendly, ask a clarifying question, and keep the conversation going. Do NOT escalate unless the visitor explicitly asks for a human agent.';
 
     return `You are an AI virtual receptionist for "${company?.name || 'this company'}".
 Today's date is ${todayStr} (YYYY-MM-DD). Always compute relative dates like "tomorrow" or "this Friday" from today's date.
@@ -491,14 +495,14 @@ Company departments: ${deptList}.
 ${contextPart}
 
 BEHAVIOR:
-- Be warm, friendly and concise (1-3 sentences).
-- NEVER invent company facts, prices, hours, or policies. Only use the knowledge base context above.
+- Be warm, friendly, personable and concise (1-3 sentences). Keep the conversation flowing like a real receptionist would — engage with the visitor, ask follow-up questions, and offer help even when you are unsure.
+- NEVER invent specific company facts, prices, hours, or policies. Only use the knowledge base context above for those. For everything else, answer naturally from general knowledge.
 - If the visitor wants to book or schedule a meeting, ask for their name, email and preferred date/time if not already provided.
 - If the context states business hours, availability, or booking policies, respect them when booking appointments - never promise a slot outside the stated availability.
 - If no availability information exists in the context, collect the visitor's preferred date/time and let a human confirm.
 - If the visitor provides their email and/or phone, capture it as a lead.
 - Choose the department that best matches the visitor's request, but only when the context or the request clearly indicates one.
-- If you cannot help or the visitor insists on talking to a human, set intent to "escalate" and reply to connect them with a human agent.
+- Escalate ONLY when the visitor explicitly and insistently asks to speak to a human agent. Otherwise always answer in conversation and never push the visitor toward a human.
 
 Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACTLY this shape:
 {"reply":"your message to the visitor","intent":"question|appointment|lead_capture|routing|escalate","department":"<department name or null>","lead":{"name":null,"email":null,"phone":null},"appointment":{"date":"YYYY-MM-DD","time":"HH:MM","title":null}}
@@ -568,6 +572,16 @@ Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACT
     return /(appoint|book(?!s\b|store|marked)\w*|schedule|meeting|reserve|slot|availability|free (?:tomorrow|today|this week)|call(?:ing)? (?:me )?back|booking)/i.test(text);
   }
 
+  private visitorWantsHuman(text: string, history?: { senderType: string; content: string }[]): boolean {
+    const explicit = /(talk|speak|connect|reach|transfer|get)\s+(me\s+)?(to|with|a)\s+(a\s+)?(real\s+)?(human|agent|person|representative|support team|someone)|human agent|real person|talk to someone|i need a human|talk to an agent/i;
+    if (explicit.test(text)) return true;
+    if (history) {
+      const recent = history.filter((m) => m.senderType === 'user').slice(-3);
+      return recent.some((m) => explicit.test(m.content));
+    }
+    return false;
+  }
+
   private extractEmail(text: string): string | null {
     const match = text.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
     return match ? match[0].toLowerCase() : null;
@@ -595,9 +609,9 @@ Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACT
       const firstLine = context.split('\n').find((l) => l.trim());
       return firstLine
         ? `Based on our information: ${firstLine.slice(0, 280)}`
-        : "I found some information, but I'm not sure it answers your question. Would you like me to connect you with a human?";
+        : "I've noted your question. Could you give me a little more detail so I can help you best?";
     }
-    return "Thanks for reaching out! I'm not sure about that yet — would you like to leave your name and email so a human agent can get back to you, or would you like to book an appointment?";
+    return "I'd be happy to help with that! Could you share a few more details about what you're looking for?";
   }
 
   private async generateAnswer(question: string, context: string, docTitle: string): Promise<string | null> {
