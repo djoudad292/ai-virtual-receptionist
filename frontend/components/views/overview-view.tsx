@@ -60,7 +60,7 @@ export default function OverviewView({ onNavigate }: { onNavigate: (tab: Tab) =>
   const setupSteps = [
     { label: 'Add knowledge base documents', done: docCount > 0, tab: 'knowledge' as Tab, hint: 'Give the AI the facts it needs to answer' },
     { label: 'Embed the chat widget on your site', done: summary.total > 0, tab: 'settings' as Tab, hint: 'Copy the code from Settings' },
-    { label: 'Chat with the AI to test it', done: summary.total > 0, tab: 'inbox' as Tab, hint: 'Open a conversation to see how it responds' },
+    { label: 'Chat with the AI to test it', done: summary.total > 0, tab: 'inbox' as Tab, hint: 'Tap "Talk to your AI" in the Inbox, or use the embedded widget' },
     { label: 'Review captured leads', done: summary.leads > 0, tab: 'leads' as Tab, hint: 'Contacts the AI captured from visitors' },
   ]
   const completedSteps = setupSteps.filter((s) => s.done).length

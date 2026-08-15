@@ -206,7 +206,7 @@ export default function InboxView() {
       ) : (
     
       <>
-      <div className={`w-full min-w-0 border-r border-border md:block md:w-80 lg:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
+      <div className={`w-full min-w-0 border-r border-border lg:block lg:w-80 xl:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
         <div className="p-4">
           <button
             type="button"
@@ -230,9 +230,14 @@ export default function InboxView() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : filteredConversations.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              {search ? 'No conversations match your search' : 'No conversations'}
-            </p>
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              <p>{search ? 'No conversations match your search' : 'No conversations yet'}</p>
+              {!search && (
+                <p className="mt-2 text-xs text-muted-foreground/60">
+                  Tap &ldquo;Talk to your AI&rdquo; above, or embed the widget on your site to get started.
+                </p>
+              )}
+            </div>
           ) : (
             filteredConversations.map((conv) => (
               <button
@@ -266,7 +271,7 @@ export default function InboxView() {
         </div>
       </div>
 
-      <div className={`flex min-w-0 flex-1 flex-col ${selectedConv ? 'fixed inset-0 z-40 bg-background md:static md:z-auto' : 'hidden md:flex'}`}>
+      <div className={`flex min-w-0 flex-1 flex-col ${selectedConv ? 'fixed inset-0 z-40 bg-background lg:static lg:z-auto' : 'hidden lg:flex'}`}>
         {!selectedConv ? (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
@@ -291,7 +296,7 @@ export default function InboxView() {
               <div className="flex min-w-0 items-center gap-2">
                 <button
                   onClick={() => setSelectedConv(null)}
-                  className="text-muted-foreground hover:text-foreground md:hidden"
+                  className="text-muted-foreground hover:text-foreground lg:hidden"
                   aria-label="Back to conversations"
                 >
                   <ArrowLeft className="h-5 w-5" />

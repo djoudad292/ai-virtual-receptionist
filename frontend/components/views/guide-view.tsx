@@ -13,7 +13,7 @@ const sections = [
       'Create your account (or sign in). Sales, Support and Billing departments are created for you automatically.',
       'Add knowledge base documents so the AI has real facts about your business to answer from.',
       'Copy the widget embed code from Settings and paste it into your website.',
-      'Open the chat on your site and send a message to test the AI.',
+      'Click "Talk to your AI" for a hands-free voice conversation, or use the embedded widget on your site to test the AI with a text chat.',
     ],
   },
   {
