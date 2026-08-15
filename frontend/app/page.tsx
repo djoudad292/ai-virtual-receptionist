@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3, FileText, Code2, MessageCircle } from 'lucide-react'
-import ChatWidgetPreview from '@/components/chat-widget-preview'
+import WidgetEmbed from '@/components/widget-embed'
 
 const features = [
   {
@@ -208,7 +208,7 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      <ChatWidgetPreview />
+      <WidgetEmbed companyId="preview" title="Live Preview" />
     </div>
   )
 }

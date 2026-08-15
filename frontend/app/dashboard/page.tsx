@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
 import Sidebar from '@/components/sidebar'
 import MobileSidebar from '@/components/mobile-sidebar'
-import ChatWidgetPreview from '@/components/chat-widget-preview'
+import WidgetEmbed from '@/components/widget-embed'
 import { Menu, Loader2 } from 'lucide-react'
 import { TABS, type Tab } from '@/lib/workspace'
 import OverviewView from '@/components/views/overview-view'
@@ -78,7 +78,7 @@ export default function DashboardPage() {
         </main>
       </div>
 
-      <ChatWidgetPreview companyId={user?.companyId || 'preview'} title="Test your AI" />
+      <WidgetEmbed companyId={user?.companyId || 'preview'} title="Test your AI" />
     </div>
   )
 }
