@@ -200,7 +200,7 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
     try {
       const data = (await apiFetch('/conversations', {
         method: 'POST',
-        body: JSON.stringify({ companyId }),
+        body: JSON.stringify({ companyId, title: 'AI talk' }),
       })) as any
       const id = data.id || data.conversationId
       if (!id) {

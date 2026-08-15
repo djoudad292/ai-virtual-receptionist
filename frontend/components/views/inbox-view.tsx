@@ -66,6 +66,7 @@ export default function InboxView() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConv, setSelectedConv] = useState<string | null>(null)
   const [aiTalkOpen, setAiTalkOpen] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -82,7 +83,7 @@ export default function InboxView() {
         .catch(() => addToast('Failed to load conversations', 'error'))
         .finally(() => setLoading(false))
     }
-  }, [isAuthenticated, addToast])
+  }, [isAuthenticated, reloadKey, addToast])
 
   useEffect(() => {
     if (!selectedConv) return
@@ -185,7 +186,7 @@ export default function InboxView() {
   return (
     <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
       {aiTalkOpen ? (
-        <InboxAiTalk token={token || ''} companyId={user?.companyId || ''} onClose={() => setAiTalkOpen(false)} />
+        <InboxAiTalk token={token || ''} companyId={user?.companyId || ''} onClose={() => { setAiTalkOpen(false); setReloadKey((k) => k + 1) }} />
       ) : (
         <>
       <div className={`w-full border-r border-border md:block md:w-80 lg:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
@@ -247,7 +248,7 @@ export default function InboxView() {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => setAiTalkOpen(true)}
+                onClick={() => { setAiTalkOpen(true); setReloadKey((k) => k + 1) }}
                 className="mx-auto flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 <PhoneCall className="h-4 w-4" /> Talk to your AI

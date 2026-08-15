@@ -41,12 +41,12 @@ export class ChatController {
 
   @Post()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
-  async createConversation(@Body('companyId') companyId?: string) {
+  async createConversation(@Body('companyId') companyId?: string, @Body('title') title?: string) {
     if (!companyId) {
       throw new ForbiddenException('A valid companyId is required');
     }
     const company = await this.chatService.findCompanyOrThrow(companyId);
-    return this.chatService.createConversation(company.id);
+    return this.chatService.createConversation(company.id, title);
   }
 
   @Post(':id/messages')
