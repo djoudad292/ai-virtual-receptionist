@@ -29,6 +29,7 @@ interface Message {
   content: string
   senderType: 'user' | 'ai' | 'agent' | 'system'
   senderId?: string
+  conversationId?: string
   createdAt: string
   metadata?: { sources?: Source[] }
 }
@@ -72,6 +73,9 @@ export default function InboxView() {
   const [loading, setLoading] = useState(true)
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [, setSocket] = useState<Socket | null>(null)
+  const socketRef = useRef<Socket | null>(null)
+  const selectedConvRef = useRef<string | null>(null)
+  selectedConvRef.current = selectedConv
   const [search, setSearch] = useState('')
   const [suggesting, setSuggesting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -100,8 +104,9 @@ export default function InboxView() {
       timeout: 15000,
       auth: { token: token || '' },
     })
-    s.on('connect', () => setSocket(s))
+    s.on('connect', () => { setSocket(s); socketRef.current = s })
     s.on('newMessage', (msg: Message) => {
+      if (msg.conversationId && msg.conversationId !== selectedConvRef.current) return
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev
         return [...prev, msg]
@@ -109,6 +114,7 @@ export default function InboxView() {
     })
     s.on('aiResponse', (data: { message: Message }) => {
       if (data?.message) {
+        if (data.message.conversationId && data.message.conversationId !== selectedConvRef.current) return
         setMessages((prev) => {
           if (prev.some((m) => m.id === data.message.id)) return prev
           return [...prev, data.message]
@@ -122,6 +128,12 @@ export default function InboxView() {
   }, [addToast, token])
 
   useEffect(() => {
+    const s = socketRef.current
+    if (!s || !selectedConv) return
+    s.emit('joinConversation', { conversationId: selectedConv })
+  }, [selectedConv])
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
@@ -130,11 +142,15 @@ export default function InboxView() {
     const content = input.trim()
     setInput('')
     try {
-      await apiFetch(`/conversations/${selectedConv}/messages`, {
+      const msg = await apiFetch(`/conversations/${selectedConv}/messages`, {
         method: 'POST',
         body: JSON.stringify({ content, senderType: 'agent' }),
       })
+      if (msg?.id) {
+        setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
+      }
     } catch {
+      setInput(content)
       addToast('Failed to send message', 'error')
     }
   }
