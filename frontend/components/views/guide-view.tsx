@@ -23,6 +23,7 @@ const sections = [
     color: 'text-blue-400 bg-blue-500/10',
     steps: [
       'All conversations with your visitors appear here in real time.',
+      'Click "Talk to your AI" for a hands-free voice conversation with your AI, just like ChatGPT or Gemini — tap the mic, speak, and follow along with live subtitles.',
       'Click a conversation to read the full history and reply live.',
       'Click "Take over" to pause the AI and chat with the visitor yourself.',
       'Use "Resolve" to mark a conversation as finished.',
