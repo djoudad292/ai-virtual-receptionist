@@ -236,6 +236,75 @@ export class WebSocketGateway
       });
   }
 
+  @SubscribeMessage('aiTalk')
+  async handleAiTalk(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { conversationId: string; content: string },
+  ) {
+    if (!data?.conversationId || !data?.content || !client.user) return;
+
+    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
+    if (!conversationCompany || conversationCompany !== client.user.companyId) {
+      client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
+      return;
+    }
+
+    const message = await this.chatService.sendMessage(
+      data.conversationId,
+      client.user.id,
+      'user',
+      data.content,
+    );
+
+    this.server
+      .to(`conversation:${data.conversationId}`)
+      .emit('newMessage', message);
+
+    this.server
+      .to(`conversation:${data.conversationId}`)
+      .emit('aiThinking', { isThinking: true });
+
+    try {
+      const history = await this.chatService.getMessages(data.conversationId);
+      const aiResponse = await this.aiService.generateResponse(
+        conversationCompany,
+        data.content,
+        history,
+        data.conversationId,
+      );
+
+      this.server
+        .to(`conversation:${data.conversationId}`)
+        .emit('aiThinking', { isThinking: false });
+
+      const aiMessage = await this.chatService.sendMessage(
+        data.conversationId,
+        null,
+        aiResponse.source === 'escalate' ? 'system' : 'ai',
+        aiResponse.response,
+        { sources: aiResponse.sources || [] },
+      );
+
+      this.server
+        .to(`conversation:${data.conversationId}`)
+        .emit('aiResponse', {
+          message: aiMessage,
+          source: aiResponse.source,
+          confidence: aiResponse.confidence,
+          intent: aiResponse.intent,
+          department: aiResponse.department,
+          lead: aiResponse.lead,
+          appointment: aiResponse.appointment,
+          sources: aiResponse.sources || [],
+        });
+    } catch (err) {
+      console.error('AI talk failed:', (err as Error).message);
+      this.server
+        .to(`conversation:${data.conversationId}`)
+        .emit('aiThinking', { isThinking: false });
+    }
+  }
+
   @SubscribeMessage('agentJoin')
   async handleAgentJoin(
     @ConnectedSocket() client: AuthenticatedSocket,

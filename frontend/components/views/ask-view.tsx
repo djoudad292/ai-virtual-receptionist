@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, Send, FileText, Search, BookOpen, Loader2, Mic, MicOff, Volume2 } from 'lucide-react'
+import { MessageSquare, Send, FileText, Search, BookOpen, Loader2 } from 'lucide-react'
 import { apiFetch, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
 
@@ -36,14 +36,7 @@ export default function AskView() {
   const [question, setQuestion] = useState('')
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [typing, setTyping] = useState(false)
-  const [listening, setListening] = useState(false)
-  const [speakingId, setSpeakingId] = useState<string | null>(null)
   const revealRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const recognitionRef = useRef<any>(null)
-  const micSupported =
-    typeof window !== 'undefined' && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-  const speechSupported =
-    typeof window !== 'undefined' && typeof window.speechSynthesis !== 'undefined'
 
   useEffect(() => {
     apiFetch(`/knowledge-base?page=1&limit=100`)
@@ -52,28 +45,25 @@ export default function AskView() {
       .finally(() => setLoading(false))
     return () => {
       if (revealRef.current) clearInterval(revealRef.current)
-      try { window.speechSynthesis?.cancel() } catch {}
-      try { recognitionRef.current?.stop() } catch {}
     }
   }, [addToast])
 
   const ready = documents.filter((d) => d.status === 'ready')
 
-  const ask = async (override?: string) => {
+  const ask = async () => {
     if (!selectedId) {
       addToast('Select a document first', 'info')
       return
     }
-    const q = (override !== undefined ? override : question).trim()
-    if (!q) return
+    if (!question.trim()) return
     if (revealRef.current) clearInterval(revealRef.current)
     setTyping(true)
     try {
       const result = (await apiFetch(`/knowledge-base/${selectedId}/ask`, {
         method: 'POST',
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({ question: question.trim() }),
       })) as AskResult
-      const item: HistoryItem = { question: q, result, revealed: 0 }
+      const item: HistoryItem = { question: question.trim(), result, revealed: 0 }
       setHistory((prev) => [item, ...prev])
       setQuestion('')
       const words = result.answer.split(' ')
@@ -97,54 +87,6 @@ export default function AskView() {
     } finally {
       setTyping(false)
     }
-  }
-
-  const stopRecognition = () => {
-    try { recognitionRef.current?.stop() } catch {}
-    setListening(false)
-  }
-
-  const speakQuestion = () => {
-    if (!micSupported) {
-      addToast('Voice input is not supported in this browser', 'info')
-      return
-    }
-    if (listening) {
-      stopRecognition()
-      return
-    }
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const rec = new SR()
-    rec.lang = 'en-US'
-    rec.interimResults = false
-    rec.onresult = (e: any) => {
-      const text = e.results[0][0].transcript as string
-      setQuestion(text)
-      setListening(false)
-      window.setTimeout(() => ask(text), 150)
-    }
-    rec.onerror = () => setListening(false)
-    rec.onend = () => setListening(false)
-    recognitionRef.current = rec
-    setListening(true)
-    try { rec.start() } catch { setListening(false) }
-  }
-
-  const speakAnswer = (text: string, id: string) => {
-    if (!speechSupported) return
-    if (speakingId === id) {
-      window.speechSynthesis.cancel()
-      setSpeakingId(null)
-      return
-    }
-    window.speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    u.rate = 1
-    u.pitch = 1
-    u.onend = () => setSpeakingId(null)
-    u.onerror = () => setSpeakingId(null)
-    setSpeakingId(id)
-    window.speechSynthesis.speak(u)
   }
 
   return (
@@ -184,27 +126,9 @@ export default function AskView() {
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label htmlFor="ask-question" className="block text-sm font-medium text-foreground">
-                  Question
-                </label>
-                {micSupported && (
-                  <button
-                    type="button"
-                    onClick={speakQuestion}
-                    disabled={typing}
-                    aria-label={listening ? 'Stop listening' : 'Ask by voice'}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                      listening
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-secondary text-foreground hover:bg-primary/10'
-                    }`}
-                  >
-                    {listening ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
-                    {listening ? 'Listening…' : 'Speak'}
-                  </button>
-                )}
-              </div>
+              <label htmlFor="ask-question" className="block text-sm font-medium text-foreground mb-2">
+                Question
+              </label>
               <textarea
                 id="ask-question"
                 value={question}
@@ -222,7 +146,7 @@ export default function AskView() {
             </div>
 
             <button
-              onClick={() => ask()}
+              onClick={ask}
               disabled={typing || !question.trim()}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
@@ -262,21 +186,6 @@ export default function AskView() {
                     {visible}
                     {!done && <span className="ml-0.5 inline-block h-4 w-2 bg-primary/70 align-middle" />}
                   </p>
-                  {done && speechSupported && (
-                    <button
-                      type="button"
-                      onClick={() => speakAnswer(item.result.answer, `${i}-${item.question}`)}
-                      aria-label={speakingId === `${i}-${item.question}` ? 'Stop reading' : 'Read answer aloud'}
-                      className={`mt-3 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        speakingId === `${i}-${item.question}`
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-secondary text-foreground hover:bg-primary/10'
-                      }`}
-                    >
-                      <Volume2 className="h-3.5 w-3.5" />
-                      {speakingId === `${i}-${item.question}` ? 'Reading…' : 'Read aloud'}
-                    </button>
-                  )}
                   {done && item.result.sources.length > 0 && (
                     <div className="mt-4">
                       <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">

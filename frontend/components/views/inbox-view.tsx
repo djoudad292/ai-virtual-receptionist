@@ -4,8 +4,9 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch, getSocketUrl, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
-import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft, Sparkles } from 'lucide-react'
+import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft, Sparkles, PhoneCall } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
+import InboxAiTalk from '@/components/views/inbox-ai-talk'
 
 interface Conversation {
   id: string
@@ -60,10 +61,11 @@ function SourcesList({ sources }: { sources: Source[] }) {
 }
 
 export default function InboxView() {
-  const { isAuthenticated, token } = useAuth()
+  const { isAuthenticated, token, user } = useAuth()
   const { addToast } = useToast()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [selectedConv, setSelectedConv] = useState<string | null>(null)
+  const [aiTalkOpen, setAiTalkOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -182,6 +184,10 @@ export default function InboxView() {
 
   return (
     <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
+      {aiTalkOpen ? (
+        <InboxAiTalk token={token || ''} companyId={user?.companyId || ''} onClose={() => setAiTalkOpen(false)} />
+      ) : (
+        <>
       <div className={`w-full border-r border-border md:block md:w-80 lg:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
         <div className="p-4">
           <input
@@ -239,7 +245,16 @@ export default function InboxView() {
         {!selectedConv ? (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground">Select a conversation to view messages</p>
+              <button
+                type="button"
+                onClick={() => setAiTalkOpen(true)}
+                className="mx-auto flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <PhoneCall className="h-4 w-4" /> Talk to your AI
+              </button>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Select a conversation to view messages
+              </p>
               <p className="mt-1 text-xs text-muted-foreground/60">
                 When a visitor uses the widget on your site, their conversation appears here.
               </p>
@@ -359,6 +374,8 @@ export default function InboxView() {
           </>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }

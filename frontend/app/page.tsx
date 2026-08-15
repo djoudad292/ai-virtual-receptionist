@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3, FileText, Code2, MessageCircle } from 'lucide-react'
-import WidgetEmbed from '@/components/widget-embed'
 
 const features = [
   {
@@ -207,8 +206,6 @@ export default function LandingPage() {
           <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">djaouad frih</a>
         </div>
       </footer>
-
-      <WidgetEmbed companyId="preview" title="Live Preview" />
     </div>
   )
 }
