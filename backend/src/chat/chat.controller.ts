@@ -50,6 +50,7 @@ export class ChatController {
   }
 
   @Post(':id/messages')
+  @UseGuards(JwtAuthGuard)
   sendMessage(
     @Req() req: any,
     @Param('id') id: string,
@@ -72,6 +73,7 @@ export class ChatController {
   }
 
   @Patch(':id/assign')
+  @UseGuards(JwtAuthGuard)
   async assignAgent(@Req() req: any, @Param('id') id: string, @Body('agentId') agentId?: string) {
     const targetAgentId = agentId || req.user.id;
     return this.chatService.assignAgent(id, targetAgentId, req.user.companyId);
