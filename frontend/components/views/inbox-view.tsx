@@ -13,6 +13,7 @@ interface Conversation {
   title: string
   status: string
   handledBy: string | null
+  assignedAgentId?: string | null
   lastMessage?: string
   createdAt: string
   updatedAt: string
@@ -148,7 +149,7 @@ export default function InboxView() {
     const content = input.trim()
     setInput('')
     const conv = conversations.find((c) => c.id === selectedConv)
-    const senderType = conv?.handledBy ? 'agent' : 'user'
+    const senderType = conv?.assignedAgentId ? 'agent' : 'user'
     const s = socketRef.current
     if (!s) {
       setInput(content)
