@@ -228,10 +228,10 @@ export class AIService {
     }
   }
 
-  // LLM chat (OpenRouter)
+  // LLM chat (OpenRouter primary, Gemini fallback when credits run out)
   private async chat(messages: { role: string; content: string }[], maxTokens = 1024): Promise<string | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) return null;
+    if (!apiKey) return this.chatGemini(messages, maxTokens);
 
     const doFetch = async (): Promise<any> => {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -276,10 +276,57 @@ export class AIService {
           continue;
         }
         this.logger.error(`OpenRouter generation failed: ${msg}`);
+        // Insufficient credits / billing failures -> fall back to Gemini.
+        if (/HTTP 402|insufficient credits|payment|billing/i.test(msg)) {
+          return this.chatGemini(messages, maxTokens);
+        }
         return null;
       }
     }
     return null;
+  }
+
+  // Gemini API fallback so the AI keeps working even when OpenRouter runs out of credits.
+  private async chatGemini(messages: { role: string; content: string }[], maxTokens = 1024): Promise<string | null> {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) return null;
+
+    const contents = messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant' || m.role === 'system')
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }));
+
+    try {
+      const res = await this.withTimeout(
+        fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents,
+              generationConfig: {
+                maxOutputTokens: maxTokens,
+                temperature: 0.5,
+              },
+            }),
+          },
+        ),
+        30000,
+      );
+      if (!res.ok) {
+        this.logger.error(`Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        return null;
+      }
+      const json: any = await res.json();
+      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+      return typeof text === 'string' && text.trim() ? text : null;
+    } catch (err) {
+      this.logger.error(`Gemini generation failed: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   // Receptionist orchestration

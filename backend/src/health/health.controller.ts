@@ -11,6 +11,7 @@ export class HealthController {
       timestamp: new Date().toISOString(),
       ai: {
         hasOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
+        hasGeminiKey: !!process.env.GEMINI_API_KEY,
         model: process.env.OPENROUTER_MODEL || 'default',
       },
     };
