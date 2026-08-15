@@ -200,12 +200,13 @@ export default function InboxView() {
   )
 
   return (
-    <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
+    <div className="flex min-w-0 flex-1 overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
       {aiTalkOpen ? (
         <InboxAiTalk token={token || ''} companyId={user?.companyId || ''} onClose={() => { setAiTalkOpen(false); setReloadKey((k) => k + 1) }} />
       ) : (
-        <>
-      <div className={`w-full border-r border-border md:block md:w-80 lg:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
+    
+      <>
+      <div className={`w-full min-w-0 border-r border-border md:block md:w-80 lg:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
         <div className="p-4">
           <button
             type="button"
@@ -265,7 +266,7 @@ export default function InboxView() {
         </div>
       </div>
 
-      <div className={`flex flex-1 flex-col ${selectedConv ? 'fixed inset-0 z-40 bg-background md:static md:z-auto' : 'hidden md:flex'}`}>
+      <div className={`flex min-w-0 flex-1 flex-col ${selectedConv ? 'fixed inset-0 z-40 bg-background md:static md:z-auto' : 'hidden md:flex'}`}>
         {!selectedConv ? (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">

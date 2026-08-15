@@ -48,7 +48,7 @@ export default function DashboardPage() {
       <Sidebar active={activeTab} onNavigate={setActiveTab} />
       <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} active={activeTab} onNavigate={setActiveTab} />
 
-      <div className="flex flex-1 flex-col md:ml-64">
+      <div className="flex min-w-0 flex-1 flex-col md:ml-64">
         <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-border bg-background/80 backdrop-blur-sm px-4 py-3 md:px-6 md:py-4">
           <button
             onClick={() => setMobileOpen(true)}
@@ -62,7 +62,7 @@ export default function DashboardPage() {
           <h1 className="text-lg font-semibold text-foreground">{activeLabel}</h1>
         </header>
 
-        <main id="main" tabIndex={-1} className="flex-1 overflow-hidden outline-none">
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-hidden outline-none">
           {activeTab === 'overview' && <OverviewView onNavigate={setActiveTab} />}
           {activeTab === 'inbox' && <InboxView />}
           {activeTab === 'knowledge' && <KnowledgeBaseView />}
