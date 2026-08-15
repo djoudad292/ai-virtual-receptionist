@@ -207,6 +207,13 @@ export default function InboxView() {
         <>
       <div className={`w-full border-r border-border md:block md:w-80 lg:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
         <div className="p-4">
+          <button
+            type="button"
+            onClick={() => { setAiTalkOpen(true); setReloadKey((k) => k + 1) }}
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <PhoneCall className="h-4 w-4" /> Talk to your AI
+          </button>
           <input
             type="text"
             value={search}

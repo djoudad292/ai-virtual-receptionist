@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { getSocketUrl, apiFetch } from '@/lib/api'
 import { useToast } from '@/components/toast'
-import { Mic, MicOff, Square, Plus, X, Volume2, Loader2, Sparkles } from 'lucide-react'
+import { Mic, MicOff, Plus, X, Loader2 } from 'lucide-react'
 
 interface TalkMessage {
   id: string
@@ -37,10 +37,10 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
   const socketRef = useRef<Socket | null>(null)
   const recognitionRef = useRef<any>(null)
   const conversationIdRef = useRef<string | null>(null)
-  const subtitleRef = useRef<{ timer?: number; spokenId?: string }>({})
-  const clearTimer = () => {
-    if (subtitleRef.current.timer != null) window.clearInterval(subtitleRef.current.timer)
-    subtitleRef.current.timer = undefined
+  const subtitleRef = useRef<{ timers: number[]; spokenId?: string }>({ timers: [] })
+  const clearTimers = () => {
+    subtitleRef.current.timers.forEach((t) => window.clearInterval(t))
+    subtitleRef.current.timers = []
   }
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -57,10 +57,10 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
   }, [])
 
   const clearSubtitle = useCallback(() => {
-    if (subtitleRef.current.timer) clearInterval(subtitleRef.current.timer)
-    subtitleRef.current.timer = undefined
+    clearTimers()
     subtitleRef.current.spokenId = undefined
     setSubtitle('')
+    setSpeaking(false)
   }, [])
 
   const stopListening = useCallback(() => {
@@ -71,65 +71,56 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
   }, [])
 
   const speak = useCallback((text: string) => {
-    if (!speechSupported) return
-    try { window.speechSynthesis.cancel() } catch {}
     const words = text.split(' ')
     const spokenId = `${Date.now()}`
     subtitleRef.current.spokenId = spokenId
     let revealed = 0
+
     const render = () => {
       if (subtitleRef.current.spokenId !== spokenId) return
       setSubtitle(words.slice(0, revealed).join(' ') + (revealed < words.length ? ' ▎' : ''))
     }
-    const clear = () => {
+
+    const finish = () => {
       if (subtitleRef.current.spokenId !== spokenId) return
       subtitleRef.current.spokenId = undefined
+      clearTimers()
       setSpeaking(false)
       setSubtitle('')
-      if (subtitleRef.current.timer != null) window.clearInterval(subtitleRef.current.timer)
-      subtitleRef.current.timer = undefined
     }
-    try {
-      const hasVoice = (window.speechSynthesis.getVoices?.().length ?? 0) > 0
-      if (!hasVoice) {
-        setSpeaking(true)
-        setSubtitle(text)
-        const t = window.setTimeout(clear, Math.min(2500, 500 + words.length * 160))
-        subtitleRef.current.timer = t
-        return
-      }
-    } catch {
-      // fall through to normal TTS
-    }
-    const u = new SpeechSynthesisUtterance(text)
-    u.rate = 1
-    u.pitch = 1
-    u.onstart = () => {
-      if (subtitleRef.current.spokenId !== spokenId) return
-      setSpeaking(true)
-      render()
-    }
-    u.onboundary = (e: any) => {
-      if (subtitleRef.current.spokenId !== spokenId) return
-      if (e.name === 'word') {
-        revealed = Math.max(revealed, e.charIndex > 0 ? text.slice(0, e.charIndex).split(' ').length - 1 : 0)
-        render()
-      }
-    }
-    u.onend = clear
-    u.onerror = clear
+
+    setSpeaking(true)
     render()
-    subtitleRef.current.timer = window.setInterval(() => {
+    const iv = window.setInterval(() => {
       if (subtitleRef.current.spokenId !== spokenId) return
       if (revealed < words.length) {
         revealed += 1
         render()
       }
-    }, 350)
+    }, 260)
+    subtitleRef.current.timers.push(iv)
+
+    const cap = window.setTimeout(finish, Math.min(10000, 1600 + words.length * 220))
+    subtitleRef.current.timers.push(cap)
+
+    if (!speechSupported) return
+    try { window.speechSynthesis.cancel() } catch {}
     try {
+      const u = new SpeechSynthesisUtterance(text)
+      u.rate = 1
+      u.pitch = 1
+      u.onboundary = (e: any) => {
+        if (subtitleRef.current.spokenId !== spokenId) return
+        if (e.name === 'word') {
+          revealed = Math.max(revealed, e.charIndex > 0 ? text.slice(0, e.charIndex).split(' ').length - 1 : 0)
+          render()
+        }
+      }
+      u.onend = finish
+      u.onerror = () => {}
       window.speechSynthesis.speak(u)
     } catch {
-      clear()
+      // interval + cap still drive the subtitle and indicator
     }
   }, [speechSupported])
 
@@ -280,7 +271,6 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
     <div className="flex flex-1 flex-col overflow-hidden" style={{ height: 'calc(100vh - 65px)' }}>
       <div className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6">
         <div className="flex min-w-0 items-center gap-2">
-          <Sparkles className="h-4 w-4 shrink-0 text-primary" />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">Talk to your AI</p>
             <p className="truncate text-xs text-muted-foreground">
@@ -311,11 +301,27 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
       <div className="flex flex-1 flex-col overflow-hidden">
         <div className="flex items-center justify-center px-4 pt-4">
           <div className="w-full max-w-2xl rounded-2xl border border-border bg-card px-5 py-6 text-center">
-            <div className="mb-3 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <Volume2 className="h-3.5 w-3.5" /> Live subtitles
-            </div>
+            {(speaking || listening) && (
+              <div className="mb-3 flex items-center justify-center gap-2">
+                {speaking ? (
+                  <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    <span className="flex h-3 items-end gap-0.5">
+                      <span className="w-0.5 animate-pulse rounded-full bg-primary" style={{ height: '100%' }} />
+                      <span className="w-0.5 animate-pulse rounded-full bg-primary" style={{ height: '60%', animationDelay: '120ms' }} />
+                      <span className="w-0.5 animate-pulse rounded-full bg-primary" style={{ height: '80%', animationDelay: '240ms' }} />
+                    </span>
+                    AI is speaking
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-500">
+                    <span className="h-2 w-2 animate-ping rounded-full bg-red-500" />
+                    Listening — speak now
+                  </span>
+                )}
+              </div>
+            )}
             <p
-              className="min-h-[2.5rem] text-lg font-medium leading-relaxed text-foreground"
+              className="min-h-[3rem] text-xl font-semibold leading-relaxed text-foreground"
               aria-live="polite"
             >
               {speaking
@@ -325,10 +331,12 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
                   : aiThinking
                     ? '…'
                     : conversationId
-                      ? 'Ready when you are — tap the mic and ask anything.'
+                      ? 'Tap the mic and ask anything.'
                       : 'Starting your talk…'}
             </p>
-            <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">{statusText}</p>
+            {!speaking && !listening && (
+              <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">{statusText}</p>
+            )}
           </div>
         </div>
 
@@ -369,21 +377,26 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
 
         <div className="border-t border-border px-4 py-4">
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleMic}
-              disabled={!micSupported || connecting || !conversationId || speaking || aiThinking}
-              aria-label={listening ? 'Stop listening' : 'Start speaking'}
-              className={`flex h-16 w-16 items-center justify-center rounded-full transition-all disabled:opacity-40 ${
-                listening
-                  ? 'animate-pulse bg-red-500 text-white'
-                  : 'bg-primary text-primary-foreground hover:bg-primary/90'
-              }`}
-            >
-              {listening ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
-            </button>
+            <div className="relative">
+              {listening && (
+                <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" />
+              )}
+              <button
+                type="button"
+                onClick={toggleMic}
+                disabled={!micSupported || connecting || !conversationId || speaking || aiThinking}
+                aria-label={listening ? 'Stop listening' : 'Start speaking'}
+                className={`relative flex h-16 w-16 items-center justify-center rounded-full transition-all disabled:opacity-40 ${
+                  listening
+                    ? 'bg-red-500 text-white'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                }`}
+              >
+                {listening ? <MicOff className="h-7 w-7" /> : <Mic className="h-7 w-7" />}
+              </button>
+            </div>
             <p className="text-xs text-muted-foreground">
-              {listening ? 'Listening — speak now' : speaking ? 'The AI is talking…' : 'Tap to talk'}
+              {listening ? 'Listening — speak now' : speaking ? 'The AI is talking…' : 'Tap the mic to talk'}
             </p>
             {!micSupported && (
               <p className="text-xs text-muted-foreground/70">
