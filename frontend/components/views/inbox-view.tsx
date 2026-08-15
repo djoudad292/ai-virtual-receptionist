@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch, getSocketUrl, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
-import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft, Sparkles, PhoneCall } from 'lucide-react'
+import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft, Sparkles, PhoneCall, Plus } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
 import InboxAiTalk from '@/components/views/inbox-ai-talk'
 
@@ -193,6 +193,22 @@ export default function InboxView() {
     }
   }
 
+  const handleNewConversation = async () => {
+    try {
+      const data = await apiFetch('/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ companyId: user?.companyId, title: 'New Conversation' }),
+      })
+      if (data?.id) {
+        setReloadKey((k) => k + 1)
+        setSelectedConv(data.id)
+        addToast('New conversation started', 'success')
+      }
+    } catch {
+      addToast('Failed to start new conversation', 'error')
+    }
+  }
+
   const selectedConvData = conversations.find((c) => c.id === selectedConv)
   const filteredConversations = conversations.filter((c) =>
     (c.title || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -208,13 +224,22 @@ export default function InboxView() {
       <>
       <div className={`w-full min-w-0 border-r border-border lg:block lg:w-80 xl:w-96 ${selectedConv ? 'hidden' : 'block'}`}>
         <div className="p-4">
-          <button
-            type="button"
-            onClick={() => { setAiTalkOpen(true); setReloadKey((k) => k + 1) }}
-            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <PhoneCall className="h-4 w-4" /> Talk to your AI
-          </button>
+          <div className="mb-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setAiTalkOpen(true); setReloadKey((k) => k + 1) }}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <PhoneCall className="h-4 w-4" /> Talk to AI
+            </button>
+            <button
+              type="button"
+              onClick={handleNewConversation}
+              className="flex items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+            >
+              <Plus className="h-4 w-4" /> New
+            </button>
+          </div>
           <input
             type="text"
             value={search}

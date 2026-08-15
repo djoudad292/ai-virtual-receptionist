@@ -105,7 +105,8 @@ export class AIService {
     try {
       const embedding = await this.withTimeout(this.generateEmbedding(query), 15000);
       const results = await this.store.searchChunksFull(companyId, embedding, limit);
-      return results.filter((r) => r.similarity >= 0.25);
+      const threshold = process.env.OPENAI_API_KEY ? 0.2 : 0.08;
+      return results.filter((r) => r.similarity >= threshold);
     } catch (err) {
       this.logger.warn(`KB search failed: ${(err as Error).message}`);
       return [];
@@ -207,7 +208,7 @@ export class AIService {
     try {
       const embedding = await this.withTimeout(this.generateEmbedding(query), 15000);
       // Local hashing embeddings are weaker than OpenAI's, so relax the threshold when OpenAI is absent.
-      const threshold = process.env.OPENAI_API_KEY ? 0.35 : 0.12;
+      const threshold = process.env.OPENAI_API_KEY ? 0.2 : 0.08;
       const results = await this.store.searchChunksPublished(companyId, embedding, limit, threshold);
       const filtered = results.filter((r) => r.similarity >= threshold);
       const bestSimilarity = filtered.length > 0 ? filtered[0].similarity : 0;
@@ -228,7 +229,7 @@ export class AIService {
   }
 
   // LLM chat (OpenRouter)
-  private async chat(messages: { role: string; content: string }[]): Promise<string | null> {
+  private async chat(messages: { role: string; content: string }[], maxTokens = 1024): Promise<string | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) return null;
 
@@ -244,8 +245,8 @@ export class AIService {
         body: JSON.stringify({
           model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
           messages,
-          max_tokens: 500,
-          temperature: 0.3,
+          max_tokens: maxTokens,
+          temperature: 0.5,
         }),
       });
       if (!res.ok) {
@@ -295,17 +296,17 @@ export class AIService {
     const { context, results: ragResults, bestSimilarity } = await this.ragSearch(companyId, userMessage);
 
     const systemPrompt = this.buildSystemPrompt(company, departmentNames, context);
-    const conversationHistory = history
-      ? history
-          .slice(-8)
-          .map((m) => `${m.senderType}: ${m.content}`)
-          .join('\n')
-      : '';
 
     const messages: { role: string; content: string }[] = [{ role: 'system', content: systemPrompt }];
-    if (conversationHistory) {
-      messages.push({ role: 'user', content: conversationHistory });
+
+    if (history && history.length > 1) {
+      const recent = history.slice(-10);
+      for (const m of recent) {
+        const role = m.senderType === 'user' ? 'user' : 'assistant';
+        messages.push({ role, content: m.content });
+      }
     }
+
     messages.push({ role: 'user', content: userMessage });
 
     const raw = await this.chat(messages);
