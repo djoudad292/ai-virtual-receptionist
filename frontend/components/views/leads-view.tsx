@@ -71,14 +71,14 @@ export default function LeadsView() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {leads.map((lead) => (
             <div key={lead.id} className="rounded-xl border border-border bg-card p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
                     {(lead.name || lead.email || '?').charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{lead.name || 'Anonymous'}</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{lead.name || 'Anonymous'}</p>
+                    <p className="truncate text-xs text-muted-foreground">
                       {new Date(lead.createdAt).toLocaleString()}
                     </p>
                   </div>
@@ -86,7 +86,7 @@ export default function LeadsView() {
                 <select
                   value={lead.status}
                   onChange={(e) => updateStatus(lead.id, e.target.value)}
-                  className="rounded-lg border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="shrink-0 rounded-lg border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="new">new</option>
                   <option value="contacted">contacted</option>
@@ -98,12 +98,12 @@ export default function LeadsView() {
               <div className="mt-4 space-y-2 text-sm">
                 {lead.email && (
                   <p className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="h-4 w-4" /> {lead.email}
+                    <Mail className="h-4 w-4 shrink-0" /> <span className="truncate">{lead.email}</span>
                   </p>
                 )}
                 {lead.phone && (
                   <p className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-4 w-4" /> {lead.phone}
+                    <Phone className="h-4 w-4 shrink-0" /> <span className="truncate">{lead.phone}</span>
                   </p>
                 )}
                 {lead.message && (

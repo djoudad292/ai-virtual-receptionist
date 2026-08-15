@@ -113,7 +113,7 @@ export class WebSocketGateway
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string; content: string; companyId?: string },
+    @MessageBody() data: { conversationId: string; content: string; companyId?: string; senderType?: 'user' | 'agent' },
   ) {
     if (!data?.conversationId || !data?.content) return;
 
@@ -132,7 +132,8 @@ export class WebSocketGateway
 
     const senderId = client.user?.id || null;
     const isAgent = client.user?.role === 'AGENT' || client.user?.role === 'COMPANY_ADMIN';
-    const senderType = isAgent ? 'agent' : 'user';
+    // Allow override, otherwise default to agent if isAgent
+    const senderType = data.senderType || (isAgent ? 'agent' : 'user');
 
     const message = await this.chatService.sendMessage(
       data.conversationId,
@@ -145,7 +146,7 @@ export class WebSocketGateway
       .to(`conversation:${data.conversationId}`)
       .emit('newMessage', message);
 
-    if (!isAgent) {
+    if (senderType === 'user') {
       this.server
         .to(`conversation:${data.conversationId}`)
         .emit('aiThinking', { isThinking: true });

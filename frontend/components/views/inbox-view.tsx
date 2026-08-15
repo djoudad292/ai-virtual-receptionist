@@ -78,6 +78,7 @@ export default function InboxView() {
   selectedConvRef.current = selectedConv
   const [search, setSearch] = useState('')
   const [suggesting, setSuggesting] = useState(false)
+  const [isThinking, setIsThinking] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -124,6 +125,11 @@ export default function InboxView() {
     s.on('takeover', () => {
       addToast('Agent has taken over', 'info')
     })
+    s.on('aiThinking', (data: { isThinking?: boolean }) => {
+      if (data && typeof data.isThinking === 'boolean') {
+        setIsThinking(data.isThinking)
+      }
+    })
     return () => { s.disconnect() }
   }, [addToast, token])
 
@@ -141,18 +147,15 @@ export default function InboxView() {
     if (!input.trim() || !selectedConv) return
     const content = input.trim()
     setInput('')
-    try {
-      const msg = await apiFetch(`/conversations/${selectedConv}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content, senderType: 'agent' }),
-      })
-      if (msg?.id) {
-        setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
-      }
-    } catch {
+    const conv = conversations.find((c) => c.id === selectedConv)
+    const senderType = conv?.handledBy ? 'agent' : 'user'
+    const s = socketRef.current
+    if (!s) {
       setInput(content)
-      addToast('Failed to send message', 'error')
+      addToast('Chat not connected', 'error')
+      return
     }
+    s.emit('sendMessage', { conversationId: selectedConv, content, senderType })
   }
 
   const handleSuggestReply = async () => {
@@ -392,6 +395,18 @@ export default function InboxView() {
                     </div>
                   </div>
                 ))
+              )}
+              {isThinking && (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-1.5 rounded-2xl bg-secondary px-4 py-3 rounded-bl-md">
+                    <span className="text-xs text-muted-foreground">AI is thinking</span>
+                    <span className="flex gap-0.5">
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: '0ms' }} />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: '150ms' }} />
+                      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  </div>
+                </div>
               )}
               <div ref={messagesEndRef} />
             </div>

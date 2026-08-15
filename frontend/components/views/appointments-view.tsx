@@ -110,20 +110,20 @@ export default function AppointmentsView() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {appointments.map((appt) => (
             <div key={appt.id} className="rounded-xl border border-border bg-card p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                     <CalendarClock className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{appt.title || 'Meeting'}</p>
-                    <p className="text-xs text-muted-foreground">{appt.customerName || 'Anonymous'}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{appt.title || 'Meeting'}</p>
+                    <p className="truncate text-xs text-muted-foreground">{appt.customerName || 'Anonymous'}</p>
                   </div>
                 </div>
                 <select
                   value={appt.status}
                   onChange={(e) => updateStatus(appt.id, e.target.value)}
-                  className="rounded-lg border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="shrink-0 rounded-lg border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="requested">requested</option>
                   <option value="confirmed">confirmed</option>

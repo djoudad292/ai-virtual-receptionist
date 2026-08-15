@@ -55,11 +55,13 @@ export class ChatController {
     @Req() req: any,
     @Param('id') id: string,
     @Body('content') content: string,
+    @Body('senderType') senderType?: string,
   ) {
+    const type = senderType === 'agent' ? 'agent' : 'user';
     return this.chatService.sendMessageToConversation(
       id,
       req.user.id,
-      'agent',
+      type,
       content,
       req.user.companyId,
     );

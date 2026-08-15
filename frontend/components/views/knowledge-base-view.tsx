@@ -254,10 +254,10 @@ export default function KnowledgeBaseView() {
         ) : (
           <div className="divide-y divide-border">
             {docs.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between px-5 py-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground truncate">{doc.title}</p>
+              <div key={doc.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={doc.title}>{doc.title}</span>
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                         doc.status === 'ready'
@@ -275,14 +275,14 @@ export default function KnowledgeBaseView() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     Added {new Date(doc.createdAt).toLocaleDateString()}
-                    {doc.filename && <span className="ml-1">· {doc.filename}</span>}
+                    {doc.filename && <span className="ml-1 inline-block max-w-[180px] align-bottom truncate">· {doc.filename}</span>}
                     {doc.pageCount ? <span> · {doc.pageCount} pages</span> : null}
                     {doc.sizeBytes ? <span> · {formatBytes(doc.sizeBytes)}</span> : null}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 ml-4">
+                <div className="flex items-center gap-1.5 sm:gap-2 sm:shrink-0 sm:ml-4">
                   <button
                     onClick={() => togglePublished(doc)}
                     className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
@@ -293,14 +293,14 @@ export default function KnowledgeBaseView() {
                   </button>
                   <button
                     onClick={() => handleDownload(doc)}
-                    className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors hidden sm:block"
                     aria-label={`Download ${doc.title}`}
                   >
                     <Download className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => reindexDocument(doc.id)}
-                    className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors hidden sm:block"
                     aria-label={`Re-index ${doc.title}`}
                   >
                     <RefreshCw className="h-4 w-4" />
