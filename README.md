@@ -1,6 +1,6 @@
 # AI Virtual Receptionist
 
-An AI-powered virtual receptionist that **answers customer questions**, **captures leads**, **books appointments**, and **routes conversations to the right department** — 24/7. Built as a multi-tenant full-stack web app.
+An AI-powered virtual receptionist that **answers customer questions** (text *and voice*), **captures leads**, **books appointments**, and **routes conversations to the right department** — 24/7. Built as a multi-tenant full-stack web app with a native Android app and an embeddable widget.
 
 ## Architecture
 
@@ -28,6 +28,7 @@ An AI-powered virtual receptionist that **answers customer questions**, **captur
 ## Features
 
 - **RAG Knowledge Base** — upload docs, auto-chunk, embed into `pgvector`, retrieve with cosine similarity, answer with citations.
+- **Voice AI Talk** — press-to-talk in the Inbox: the AI hears you, streams a spoken answer with live subtitles (Web Speech API — no external voice service needed).
 - **AI Answers 24/7** — OpenRouter LLM with a receptionist system prompt.
 - **Lead Capture** — the AI detects and saves visitor contact info (name, email, phone) into your pipeline.
 - **Appointments** — visitors can book meetings in chat; the AI parses relative dates ("tomorrow at 14:00") and saves appointments.
@@ -135,7 +136,7 @@ The backend is a long-running NestJS + Socket.io server, so it needs a container
 2. **Add knowledge base docs** → content is chunked, embedded and stored in `pgvector`.
 3. **Embed the widget** on a site (copy from Settings) or use the chat preview.
 4. Visitors can ask questions (RAG answers), leave their email/phone (lead captured), or book a meeting (appointment saved).
-5. **Inbox** → take over any conversation and chat with the visitor live.
+5. **Inbox** → take over any conversation and chat with the visitor live, or use **AI Talk** (mic button) to speak to the AI out loud — it replies by voice with subtitles.
 6. **Leads / Appointments** → manage everything the AI captured.
 
 ### Widget embed
