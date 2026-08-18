@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3, FileText, Code2, MessageCircle } from 'lucide-react'
+import { DemoChat } from '@/components/demo-chat'
 
 const features = [
   {
@@ -86,10 +87,13 @@ export default function LandingPage() {
               <span className="font-medium text-primary">pgvector RAG</span>
               {' · '}
               <span className="font-medium text-primary">Postgres</span>
-              <br />
-              Built by{' '}
-              <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">djaouad frih</a>
             </p>
+            <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+              <span>Built by</span>
+              <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-bold text-primary hover:underline">
+                djaouad frih
+              </a>
+            </div>
             <div className="animate-fade-in-up-delay-2 mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4 md:mt-10">
               <Link
                 href="/register"
@@ -206,6 +210,8 @@ export default function LandingPage() {
           <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">djaouad frih</a>
         </div>
       </footer>
+
+      <DemoChat />
     </div>
   )
 }

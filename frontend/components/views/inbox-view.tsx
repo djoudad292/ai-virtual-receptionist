@@ -250,7 +250,7 @@ export default function InboxView() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search conversations..."
             aria-label="Search conversations"
-            className="w-full rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary transition-shadow hover:border-primary/30"
           />
         </div>
         <div className="overflow-y-auto" style={{ height: 'calc(100vh - 130px)' }}>
@@ -303,21 +303,22 @@ export default function InboxView() {
       <div className={`flex min-w-0 flex-1 flex-col ${selectedConv ? 'fixed inset-0 z-40 bg-background lg:static lg:z-auto' : 'hidden lg:flex'}`}>
         {!selectedConv ? (
           <div className="flex flex-1 items-center justify-center">
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => { setAiTalkOpen(true); setReloadKey((k) => k + 1) }}
-                className="mx-auto flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                <PhoneCall className="h-4 w-4" /> Talk to your AI
-              </button>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Select a conversation to view messages
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground/60">
-                When a visitor uses the widget on your site, their conversation appears here.
-              </p>
-            </div>
+                <div className="text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+                    <Sparkles className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">Start a conversation</h3>
+                  <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">
+                    Select a conversation from the list to view messages, or use the "Talk to your AI" button to start a voice conversation immediately.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setAiTalkOpen(true); setReloadKey((k) => k + 1) }}
+                    className="mt-6 mx-auto flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    <PhoneCall className="h-4 w-4" /> Talk to your AI
+                  </button>
+                </div>
           </div>
         ) : (
           <>
@@ -368,24 +369,30 @@ export default function InboxView() {
                 messages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex gap-2 ${msg.senderType === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
+                    {msg.senderType !== 'user' && msg.senderType !== 'system' && (
+                      <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground uppercase border border-border">
+                        {msg.senderType === 'agent' ? 'Ag' : 'AI'}
+                      </div>
+                    )}
                     <div
-                      className={`max-w-[70%] rounded-2xl px-4 py-2.5 text-sm ${
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
                         msg.senderType === 'user'
-                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          ? 'bg-primary text-primary-foreground rounded-br-none'
                           : msg.senderType === 'agent'
-                            ? 'bg-green-500/10 text-foreground border border-green-500/20 rounded-bl-md'
+                            ? 'bg-green-600 text-white rounded-bl-none'
                             : msg.senderType === 'system'
-                              ? 'bg-muted text-muted-foreground italic text-xs'
-                              : 'bg-secondary text-foreground rounded-bl-md'
+                              ? 'bg-muted text-muted-foreground italic text-xs mx-auto text-center !max-w-[90%] rounded-lg px-2 py-1'
+                              : 'bg-secondary text-foreground rounded-bl-none'
                       }`}
                     >
-                      <p className="text-xs font-medium mb-1 opacity-70">
-                        {msg.senderType === 'agent' ? 'Agent' :
-                         msg.senderType === 'ai' ? 'AI' :
-                         msg.senderType === 'system' ? 'System' : 'User'}
-                      </p>
+                      {msg.senderType !== 'system' && (
+                        <p className="text-[10px] font-semibold mb-1 opacity-60 uppercase tracking-wider">
+                          {msg.senderType === 'agent' ? 'Agent' :
+                           msg.senderType === 'ai' ? 'AI Virtual Receptionist' : 'User (Test)'}
+                        </p>
+                      )}
                       <p>{msg.content}</p>
                       {msg.senderType === 'ai' && msg.metadata?.sources?.length ? (
                         <SourcesList sources={msg.metadata.sources} />
@@ -399,9 +406,9 @@ export default function InboxView() {
               )}
               {isThinking && (
                 <div className="flex justify-start">
-                  <div className="flex items-center gap-1.5 rounded-2xl bg-secondary px-4 py-3 rounded-bl-md">
-                    <span className="text-xs text-muted-foreground">AI is thinking</span>
-                    <span className="flex gap-0.5">
+                  <div className="flex items-center gap-2 rounded-2xl bg-secondary px-4 py-3 rounded-bl-none">
+                    <span className="text-xs font-medium text-muted-foreground">AI is thinking</span>
+                    <span className="flex gap-1">
                       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: '0ms' }} />
                       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: '150ms' }} />
                       <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: '300ms' }} />

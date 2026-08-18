@@ -32,6 +32,7 @@ An AI-powered virtual receptionist that **answers customer questions** (text *an
 - **AI Answers 24/7** — OpenRouter LLM with a receptionist system prompt.
 - **Lead Capture** — the AI detects and saves visitor contact info (name, email, phone) into your pipeline.
 - **Appointments** — visitors can book meetings in chat; the AI parses relative dates ("tomorrow at 14:00") and saves appointments.
+- **Tool-Calling Agent** — the AI doesn't just talk: it invokes real functions (`capture_lead`, `book_appointment`, `send_confirmation_email`) to save leads, book appointments and send confirmation emails. Uses Gemini's free function-calling tier (auto-fallback from OpenRouter).
 - **Department Routing** — intent classification routes each conversation to Sales / Support / Billing (configurable).
 - **Real-Time Chat** — Socket.io messaging, typing indicators, human handoff & takeover.
 - **Embeddable Widget** — lightweight vanilla-JS snippet for any website.
@@ -191,7 +192,9 @@ See `backend/.env.example` for the full list. Key ones:
 | `DATABASE_URL` | Yes | Postgres + pgvector connection string |
 | `OPENROUTER_API_KEY` | Yes | LLM provider |
 | `OPENROUTER_MODEL` | No | Default `google/gemini-2.5-flash` |
+| `GEMINI_API_KEY` | No | Gemini fallback — free-tier function calling for tools |
 | `OPENAI_API_KEY` | No | Embeddings; falls back to local hashing if empty |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | No | Send confirmation emails; if empty, emails are logged instead |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | Yes | Auth secrets |
 
 ---

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiFetch, paginate } from '@/lib/api'
 import { useToast } from '@/components/toast'
+import { truncateText } from '@/lib/utils'
 import { Loader2, Users, Mail, Phone, MessageSquare } from 'lucide-react'
 
 interface Lead {
@@ -70,10 +71,13 @@ export default function LeadsView() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {leads.map((lead) => (
-            <div key={lead.id} className="rounded-xl border border-border bg-card p-5">
+            <div
+              key={lead.id}
+              className="group rounded-xl border border-border/50 bg-card p-5 shadow-sm transition-all hover:shadow-md hover:border-primary/20"
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
                     {(lead.name || lead.email || '?').charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
@@ -86,7 +90,7 @@ export default function LeadsView() {
                 <select
                   value={lead.status}
                   onChange={(e) => updateStatus(lead.id, e.target.value)}
-                  className="shrink-0 rounded-lg border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="shrink-0 rounded-lg border border-border bg-secondary px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
                 >
                   <option value="new">new</option>
                   <option value="contacted">contacted</option>
@@ -106,19 +110,17 @@ export default function LeadsView() {
                     <Phone className="h-4 w-4 shrink-0" /> <span className="truncate">{lead.phone}</span>
                   </p>
                 )}
-                {lead.message && (
-                  <p className="flex items-start gap-2 text-muted-foreground">
-                    <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span className="line-clamp-3">{lead.message}</span>
+                  {lead.message && (
+                    <p className="flex items-start gap-2 text-muted-foreground">
+                      <MessageSquare className="h-4 w-4 shrink-0 mt-0.5" /> <span className="line-clamp-2 text-xs">{truncateText(lead.message, 100)}</span>
+                    </p>
+                  )}
+                {lead.department && (
+                  <p className="flex items-center gap-2 text-muted-foreground/60">
+                    <Users className="h-4 w-4 shrink-0" /> <span className="truncate">{lead.department}</span>
                   </p>
                 )}
               </div>
-
-              {lead.department && (
-                <span className="mt-4 inline-block rounded-full bg-purple-500/10 px-2.5 py-0.5 text-xs font-medium text-purple-400">
-                  {lead.department}
-                </span>
-              )}
             </div>
           ))}
         </div>

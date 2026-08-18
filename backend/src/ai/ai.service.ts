@@ -1,5 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
+import { MailService } from '../common/mail.service';
+import {
+  RECEPTIONIST_TOOLS,
+  ToolDefinition,
+  ToolCall,
+  openAiTools,
+  geminiTools,
+  parseToolArgs,
+  OpenAIMessage,
+  toGeminiContents,
+} from './agent-tools';
 
 const EMBEDDING_DIM = 1536;
 const DEFAULT_DEPARTMENTS = [
@@ -34,7 +45,10 @@ export interface AskResult {
 export class AIService {
   private readonly logger = new Logger(AIService.name);
 
-  constructor(private store: StoreService) {}
+  constructor(
+    private store: StoreService,
+    private mail: MailService,
+  ) {}
 
   // Embeddings: OpenAI with a local hashing fallback
   async generateEmbedding(text: string): Promise<number[]> {
@@ -329,6 +343,238 @@ export class AIService {
     }
   }
 
+  // Real tool-calling loop for the receptionist: the LLM invokes functions
+  // (capture_lead, book_appointment, send_confirmation_email) instead of just
+  // emitting a JSON envelope. Supports OpenRouter (OpenAI format) and Gemini.
+  private async chatWithTools(
+    messages: OpenAIMessage[],
+    tools: ToolDefinition[],
+    maxTokens = 1024,
+  ): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (apiKey) {
+      try {
+        return await this.chatOpenRouterWithTools(messages, tools, maxTokens);
+      } catch (err) {
+        this.logger.warn(`OpenRouter tool call failed, using Gemini: ${(err as Error).message}`);
+      }
+    }
+    return this.chatGeminiWithTools(messages, tools, maxTokens);
+  }
+
+  private async chatOpenRouterWithTools(
+    messages: OpenAIMessage[],
+    tools: ToolDefinition[],
+    maxTokens = 1024,
+  ): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
+
+    const doFetch = async (): Promise<any> => {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': process.env.APP_URL || '',
+          'X-Title': 'AI Virtual Receptionist',
+        },
+        body: JSON.stringify({
+          model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+          messages,
+          tools: openAiTools(tools),
+          max_tokens: maxTokens,
+          temperature: 0.5,
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`OpenRouter HTTP ${res.status}: ${errBody.slice(0, 200)}`);
+      }
+      return res.json();
+    };
+
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const json: any = await this.withTimeout(doFetch(), 30000);
+        const message = json.choices?.[0]?.message;
+        const content = typeof message?.content === 'string' && message.content.trim() ? message.content : null;
+        const toolCalls: ToolCall[] = (message?.tool_calls || [])
+          .filter((tc: any) => tc?.function?.name)
+          .map((tc: any) => ({
+            id: tc.id || `call_${Math.random().toString(36).slice(2)}`,
+            name: tc.function.name,
+            args: parseToolArgs(tc.function.arguments),
+          }));
+        return { content, toolCalls };
+      } catch (err) {
+        const msg = (err as Error).message;
+        const isRetryable = /HTTP 503|HTTP 429|HTTP 5\d\d|request queue is full|temporarily overloaded|rate.?limit/i.test(msg);
+        if (isRetryable && attempt < maxRetries) {
+          const delay = 1000 * Math.min(2 ** (attempt - 1), 4) + Math.random() * 500;
+          this.logger.warn(`OpenRouter retry ${attempt}/${maxRetries - 1} after ${delay}ms: ${msg}`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        if (/HTTP 402|insufficient credits|payment|billing/i.test(msg)) {
+          return this.chatGeminiWithTools(messages, tools, maxTokens);
+        }
+        throw err;
+      }
+    }
+    throw new Error('OpenRouter tool call failed after retries');
+  }
+
+  private async chatGeminiWithTools(
+    messages: OpenAIMessage[],
+    tools: ToolDefinition[],
+    maxTokens = 1024,
+  ): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) return { content: null, toolCalls: [] };
+
+    try {
+      const res = await this.withTimeout(
+        fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: toGeminiContents(messages),
+              tools: geminiTools(tools),
+              generationConfig: {
+                maxOutputTokens: maxTokens,
+                temperature: 0.5,
+              },
+            }),
+          },
+        ),
+        30000,
+      );
+      if (!res.ok) {
+        this.logger.error(`Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        return { content: null, toolCalls: [] };
+      }
+      const json: any = await res.json();
+      const parts: any[] = json?.candidates?.[0]?.content?.parts || [];
+      const content = parts
+        .filter((p) => typeof p?.text === 'string' && p.text.trim())
+        .map((p) => p.text)
+        .join('\n') || null;
+      const toolCalls: ToolCall[] = parts
+        .filter((p) => p?.functionCall?.name)
+        .map((p) => ({
+          id: `fc_${Math.random().toString(36).slice(2)}`,
+          name: p.functionCall.name,
+          args: p.functionCall.args || {},
+        }));
+      return { content, toolCalls };
+    } catch (err) {
+      this.logger.error(`Gemini tool generation failed: ${(err as Error).message}`);
+      return { content: null, toolCalls: [] };
+    }
+  }
+
+  // Execute an LLM-invoked tool against the real store / mail services.
+  private async executeReceptionistTool(
+    call: ToolCall,
+    companyId: string,
+    conversationId?: string,
+    executed: { lead?: any; appointment?: any } = {},
+  ): Promise<string> {
+    const args = call.args || {};
+    try {
+      switch (call.name) {
+        case 'capture_lead': {
+          const name = typeof args.name === 'string' ? args.name.trim() || null : null;
+          const email = typeof args.email === 'string' ? args.email.trim() || null : null;
+          const phone = typeof args.phone === 'string' ? args.phone.trim() || null : null;
+          if (!name && !email && !phone) {
+            return JSON.stringify({ ok: false, error: 'No contact info provided' });
+          }
+          let lead = conversationId ? await this.store.findLeadByConversation(conversationId) : null;
+          if (lead) {
+            lead = await this.store.updateLead(lead.id, {
+              name: name || lead.name || undefined,
+              email: email || lead.email || undefined,
+              phone: phone || lead.phone || undefined,
+            });
+          } else {
+            lead = await this.store.createLead({
+              id: crypto.randomUUID(),
+              companyId,
+              conversationId: conversationId || null,
+              name,
+              email,
+              phone,
+              message: null,
+              source: 'chat',
+              status: 'new',
+              department: null,
+            });
+            if (conversationId) {
+              await this.store.updateConversation(conversationId, { leadId: lead.id });
+            }
+          }
+          executed.lead = { name: lead?.name || null, email: lead?.email || null, phone: lead?.phone || null };
+          return JSON.stringify({ ok: true, leadId: lead?.id, name, email, phone });
+        }
+        case 'book_appointment': {
+          const date = typeof args.date === 'string' ? args.date : null;
+          const time = typeof args.time === 'string' ? args.time : null;
+          const title = typeof args.title === 'string' && args.title ? args.title : 'Scheduled meeting';
+          if (!date || !time) {
+            return JSON.stringify({ ok: false, error: 'date and time are required' });
+          }
+          const startTime = this.parseAppointmentDateTime(date, time);
+          if (!startTime) {
+            return JSON.stringify({ ok: false, error: `Invalid date/time: ${date} ${time}` });
+          }
+          const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
+          const lead = conversationId ? await this.store.findLeadByConversation(conversationId) : null;
+          const appt = await this.store.createAppointment({
+            id: crypto.randomUUID(),
+            companyId,
+            conversationId: conversationId || null,
+            leadId: lead?.id || null,
+            customerName: lead?.name || null,
+            customerEmail: lead?.email || null,
+            title,
+            notes: null,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            status: 'requested',
+          });
+          if (conversationId) {
+            const convo = await this.store.findConversationById(conversationId);
+            await this.store.updateConversation(conversationId, {
+              metadata: { ...(convo?.metadata || {}), appointmentBooked: true },
+            });
+          }
+          executed.appointment = { date, time, title };
+          return JSON.stringify({ ok: true, appointmentId: appt.id, date, time, title });
+        }
+        case 'send_confirmation_email': {
+          const to = typeof args.to === 'string' ? args.to : null;
+          const subject = typeof args.subject === 'string' ? args.subject : null;
+          const body = typeof args.body === 'string' ? args.body : null;
+          if (!to || !subject) {
+            return JSON.stringify({ ok: false, error: 'to and subject are required' });
+          }
+          const sent = await this.mail.send({ to, subject, text: body || '' });
+          return JSON.stringify({ ok: sent, sent });
+        }
+        default:
+          return JSON.stringify({ ok: false, error: `Unknown tool: ${call.name}` });
+      }
+    } catch (err) {
+      this.logger.error(`Tool ${call.name} failed: ${(err as Error).message}`);
+      return JSON.stringify({ ok: false, error: (err as Error).message });
+    }
+  }
+
   // Receptionist orchestration
   async generateResponse(
     companyId: string,
@@ -344,19 +590,44 @@ export class AIService {
 
     const systemPrompt = this.buildSystemPrompt(company, departmentNames, context);
 
-    const messages: { role: string; content: string }[] = [{ role: 'system', content: systemPrompt }];
+    const agentMessages: OpenAIMessage[] = [{ role: 'system', content: systemPrompt }];
 
     if (history && history.length > 1) {
       const recent = history.slice(-10);
       for (const m of recent) {
         const role = m.senderType === 'user' ? 'user' : 'assistant';
-        messages.push({ role, content: m.content });
+        agentMessages.push({ role, content: m.content });
       }
     }
 
-    messages.push({ role: 'user', content: userMessage });
+    agentMessages.push({ role: 'user', content: userMessage });
 
-    const raw = await this.chat(messages);
+    // Tool-calling loop: let the LLM invoke real functions (capture_lead,
+    // book_appointment, send_confirmation_email). Falls back to plain JSON
+    // envelope generation if no tools are requested.
+    const executed: { lead?: any; appointment?: any } = {};
+    let raw: string | null = null;
+    for (let round = 0; round < 3; round++) {
+      const turn = await this.chatWithTools(agentMessages, RECEPTIONIST_TOOLS);
+      if (!turn.toolCalls.length) {
+        raw = turn.content;
+        break;
+      }
+      agentMessages.push({
+        role: 'assistant',
+        content: turn.content,
+        tool_calls: turn.toolCalls.map((tc) => ({
+          id: tc.id,
+          type: 'function',
+          function: { name: tc.name, arguments: JSON.stringify(tc.args || {}) },
+        })),
+      });
+      for (const tc of turn.toolCalls) {
+        const resultText = await this.executeReceptionistTool(tc, companyId, conversationId, executed);
+        agentMessages.push({ role: 'tool', tool_call_id: tc.id, content: resultText });
+      }
+    }
+
     const parsed = this.extractJson(raw);
 
     let intent: ReceptionistResult['intent'] = 'other';
@@ -395,6 +666,16 @@ export class AIService {
       if (email || phoneMatch) {
         lead = { name: null, email, phone: phoneMatch ? phoneMatch[1].trim() : null };
       }
+    }
+
+    // Tool-executed side effects take precedence over the JSON envelope.
+    if (executed.lead) {
+      lead = this.sanitizeLead(executed.lead);
+      if (intent === 'other') intent = 'lead_capture';
+    }
+    if (executed.appointment) {
+      appointment = this.sanitizeAppointment(executed.appointment);
+      if (intent === 'other') intent = 'appointment';
     }
 
     const result: ReceptionistResult = {
@@ -550,6 +831,12 @@ BEHAVIOR:
 - If the visitor provides their email and/or phone, capture it as a lead.
 - Choose the department that best matches the visitor's request, but only when the context or the request clearly indicates one.
 - Escalate ONLY when the visitor explicitly and insistently asks to speak to a human agent. Otherwise always answer in conversation and never push the visitor toward a human.
+
+TOOLS (use them for side effects instead of just talking):
+- Call "capture_lead" when the visitor shares their name, email, or phone. Pass only the fields you actually know; leave the rest out.
+- Call "book_appointment" when the visitor wants to schedule a meeting and you have a concrete date and time. Use the exact date (YYYY-MM-DD) and 24h time (HH:MM) they gave.
+- Call "send_confirmation_email" right after booking when you know the visitor's email, with a short friendly confirmation message.
+- Only call a tool when you have the real data the visitor provided — never invent a date, time, or email address.
 
 Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACTLY this shape:
 {"reply":"your message to the visitor","intent":"question|appointment|lead_capture|routing|escalate","department":"<department name or null>","lead":{"name":null,"email":null,"phone":null},"appointment":{"date":"YYYY-MM-DD","time":"HH:MM","title":null}}

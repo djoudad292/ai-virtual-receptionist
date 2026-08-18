@@ -6,6 +6,7 @@ import { apiFetch, paginate, downloadFile, formatBytes } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import ConfirmDialog from '@/components/confirm-dialog'
 import { Plus, Trash2, RefreshCw, Search, Loader2, X, Upload, ChevronLeft, ChevronRight, Download, Globe } from 'lucide-react'
+import { truncateText } from '@/lib/utils'
 
 interface Document {
   id: string
@@ -33,9 +34,6 @@ export default function KnowledgeBaseView() {
   const [newTitle, setNewTitle] = useState('')
   const [newContent, setNewContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<Document[]>([])
-  const [searching, setSearching] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Document | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -161,24 +159,8 @@ export default function KnowledgeBaseView() {
     }
   }
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return
-    setSearching(true)
-    try {
-      const data = await apiFetch('/knowledge-base/search', {
-        method: 'POST',
-        body: JSON.stringify({ query: searchQuery.trim() }),
-      })
-      setSearchResults(Array.isArray(data) ? data : data.results || [])
-    } catch {
-      addToast('Search failed', 'error')
-    } finally {
-      setSearching(false)
-    }
-  }
-
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Your Knowledge Base</h2>
@@ -206,39 +188,6 @@ export default function KnowledgeBaseView() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Search Knowledge Base</h2>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
-            placeholder="Search your knowledge base..."
-            aria-label="Search your knowledge base"
-            className="flex-1 rounded-xl border border-border bg-secondary px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-          <button
-            onClick={handleSearch}
-            disabled={searching || !searchQuery.trim()}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-            Search
-          </button>
-        </div>
-        {searchResults.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {searchResults.map((doc) => (
-              <div key={doc.id} className="rounded-lg bg-secondary p-3">
-                <p className="text-sm font-medium text-foreground">{doc.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{doc.content}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className="rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-4">
           <h2 className="text-sm font-semibold text-foreground">Documents ({total})</h2>
@@ -252,12 +201,15 @@ export default function KnowledgeBaseView() {
             <p className="text-sm text-muted-foreground">No documents yet. Add your first document.</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="space-y-3">
             {docs.map((doc) => (
-              <div key={doc.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div
+                key={doc.id}
+                className="group flex flex-col gap-2.5 p-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-border/50 bg-card/50 shadow-sm transition-all hover:shadow-md hover:border-primary/20"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={doc.title}>{doc.title}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={doc.title}>{truncateText(doc.title, 15)}</span>
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                         doc.status === 'ready'

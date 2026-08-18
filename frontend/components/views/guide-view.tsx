@@ -1,7 +1,7 @@
 'use client'
 
 import type { Tab } from '@/lib/workspace'
-import { Rocket, BookOpen, MessageSquare, Users, CalendarClock, BarChart3, Settings, Send } from 'lucide-react'
+import { Rocket, BookOpen, MessageSquare, Users, CalendarClock, BarChart3, Settings, Send, Smartphone, Download } from 'lucide-react'
 
 const sections = [
   {
@@ -159,6 +159,39 @@ export default function GuideView({ onNavigate }: { onNavigate: (tab: Tab) => vo
           >
             Get Embed Code
           </button>
+        </div>
+      </div>
+
+      {/* Mobile App Download */}
+      <div className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-6">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+            <Smartphone className="h-6 w-6 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-foreground">Get the Mobile App</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Manage conversations, view leads, and talk to your AI receptionist from your Android device.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <a
+                href="/app-release.apk"
+                download
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                Download APK
+              </a>
+              <a
+                href="https://github.com/djoudad292/ai-virtual-receptionist/tree/main/mobile"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+              >
+                View Source
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
