@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3, FileText, Code2, MessageCircle } from 'lucide-react'
+import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3, FileText, Code2, MessageCircle, Smartphone, Download } from 'lucide-react'
 import { DemoChat } from '@/components/demo-chat'
 
 const features = [
@@ -210,6 +210,44 @@ export default function LandingPage() {
           <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">djaouad frih</a>
         </div>
       </footer>
+
+      {/* Mobile App Download Section */}
+      <section className="py-16 md:py-20">
+        <div className="mx-auto max-w-7xl px-4 md:px-6">
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 md:p-8 text-center">
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+                <Smartphone className="h-8 w-8 text-primary" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-xl font-bold text-foreground">Get the Mobile App</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Manage conversations, view leads, and talk to your AI receptionist from your Android device.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <a
+                href="/app-release.apk"
+                download
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                Download APK
+              </a>
+              <a
+                href="https://github.com/djoudad292/ai-virtual-receptionist/tree/main/mobile"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-border px-6 py-3 text-sm font-medium text-foreground hover:bg-secondary transition-colors"
+              >
+                <Code2 className="h-4 w-4" />
+                View Source
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <DemoChat />
     </div>
