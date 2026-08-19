@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { Logger as PinoLogger } from 'nestjs-pino';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { AppModule } from './app.module';
@@ -11,7 +13,10 @@ import { StoreService } from './common/store.service';
 import { AIService } from './ai/ai.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
+  app.useLogger(app.get(PinoLogger));
   const logger = new Logger('Bootstrap');
 
   // Serve the embeddable chat widget: GET /widget.js
@@ -40,6 +45,15 @@ async function bootstrap() {
     }),
   );
 
+  const config = new DocumentBuilder()
+    .setTitle('AI Customer Support API')
+    .setDescription('The AI Customer Support SaaS Platform API description')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
   const db = app.get(DatabaseService);
   const store = app.get(StoreService);
   const ai = app.get(AIService);
@@ -53,6 +67,16 @@ async function bootstrap() {
 }
 
 async function seedDemoData(store: StoreService, ai: AIService, logger: Logger) {
+  // Set up LangGraph checkpointer tables for conversation memory persistence
+  try {
+    const { PostgresSaver } = await import('@langchain/langgraph-checkpoint-postgres');
+    const checkpointer = PostgresSaver.fromConnString(process.env.DATABASE_URL || '');
+    await checkpointer.setup();
+    logger.log('LangGraph PostgresSaver checkpointer tables created/verified');
+  } catch (err) {
+    logger.warn(`LangGraph checkpointer setup skipped: ${(err as Error).message}`);
+  }
+
   for (const id of ['preview', 'public']) {
     await store.findCompanyById(id) ||
     (await store.createCompany({

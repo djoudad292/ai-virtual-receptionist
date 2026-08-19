@@ -112,6 +112,11 @@ export class AIService {
     return vector.map((v) => v / mag);
   }
 
+  // Public RAG search for LangGraph agent
+  async ragSearchPublic(companyId: string, query: string, limit = 5) {
+    return this.ragSearch(companyId, query, limit);
+  }
+
   // RAG search
   async searchKnowledgeBase(companyId: string, query: string, limit = 10) {
     const totalChunks = await this.store.countChunks(companyId);
@@ -575,8 +580,49 @@ export class AIService {
     }
   }
 
-  // Receptionist orchestration
+  // Receptionist orchestration — now powered by LangGraph
   async generateResponse(
+    companyId: string,
+    userMessage: string,
+    history?: { senderType: string; content: string }[],
+    conversationId?: string,
+  ): Promise<ReceptionistResult> {
+    try {
+      const { runReceptionistGraph } = await import('./langgraph/agent.graph');
+      const lgResult = await runReceptionistGraph({
+        userMessage,
+        companyId,
+        conversationId,
+        history,
+        store: this.store,
+        mail: this.mail,
+        aiService: this,
+      });
+
+      const result: ReceptionistResult = {
+        response: lgResult.response,
+        source: lgResult.source,
+        confidence: lgResult.source === 'ai' ? 0.9 : 0,
+        intent: lgResult.intent,
+        department: lgResult.department,
+        lead: lgResult.lead,
+        appointment: lgResult.appointment,
+        sources: lgResult.sources,
+      };
+
+      if (conversationId) {
+        await this.persistSideEffects(companyId, conversationId, result);
+      }
+
+      return result;
+    } catch (err) {
+      this.logger.error(`LangGraph agent failed, falling back to legacy: ${(err as Error).message}`);
+      return this.generateResponseLegacy(companyId, userMessage, history, conversationId);
+    }
+  }
+
+  // Legacy receptionist orchestration (kept as fallback)
+  private async generateResponseLegacy(
     companyId: string,
     userMessage: string,
     history?: { senderType: string; content: string }[],
