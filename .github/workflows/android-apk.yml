@@ -3,7 +3,7 @@ name: Android APK (direct)
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - 'mobile/**'
       - '.github/workflows/android-apk.yml'
@@ -21,40 +21,39 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: mobile/package-lock.json
-      - uses: actions/setup-java@v5
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
         with:
-          distribution: temurin
-          java-version: '21'
-      - uses: android-actions/setup-android@v3
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
       - name: Install dependencies
         working-directory: mobile
         run: npm ci
-      - name: Generate native Android project
+
+      - name: Build Android APK
         working-directory: mobile
-        run: npx expo prebuild --platform android --no-install --non-interactive
-      - name: Build release APK (self-contained JS, no Metro needed)
-        working-directory: mobile/android
-        run: ./gradlew assembleRelease
-      - name: Upload APK
+        run: eas build --platform android --profile preview --non-interactive --local
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
           name: ai-receptionist-apk
-          path: mobile/android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
+          path: mobile/build/*.apk
 
-      - name: Publish APK to public GitHub Release
+      - name: Publish APK to GitHub Release
         run: |
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk ai-receptionist.apk
-
+          ASSET_NAME="ai-receptionist-$(date +%Y%m%d%H%M%S).apk"
+          LATEST_APK=$(ls -t mobile/build/*.apk | head -1)
+          cp "$LATEST_APK" "$ASSET_NAME"
       - uses: softprops/action-gh-release@v3
         with:
-          tag_name: latest-apk
-          name: Latest AI Receptionist APK
+          tag_name: latest-apk-receptionist
+          name: Latest AI Receptionist Android APK
           body: |
-            Latest Android APK built from main (commit ${{ github.sha }}).
-            Everyone can download and install it from the asset below.
-          files: ai-receptionist.apk
-          overwrite_files: true
-          fail_on_unmatched_files: true
+            Latest Android APK built from main.
+            Requires Android 8.0+
+          files: "$ASSET_NAME"
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
