@@ -2,6 +2,10 @@
 
 An AI-powered virtual receptionist that **answers customer questions** (text *and voice*), **captures leads**, **books appointments**, and **routes conversations to the right department** — 24/7. Built as a multi-tenant full-stack web app with a native Android app and an embeddable widget.
 
+**Live demo:** [chat.djaouad.tech](https://chat.djaouad.tech)
+
+![AI Virtual Receptionist — live demo](screenshots/receptionist-hero.png)
+
 ## Architecture
 
 ```
