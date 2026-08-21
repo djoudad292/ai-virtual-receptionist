@@ -313,8 +313,8 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
                     AI is speaking
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-500">
-                    <span className="h-2 w-2 animate-ping rounded-full bg-red-500" />
+                  <span className="flex items-center gap-1.5 rounded-full bg-danger/10 px-3 py-1 text-xs font-semibold text-danger">
+                    <span className="h-2 w-2 animate-ping rounded-full bg-danger" />
                     Listening — speak now
                   </span>
                 )}
@@ -379,7 +379,7 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-2">
             <div className="relative">
               {listening && (
-                <span className="absolute inset-0 animate-ping rounded-full bg-red-500/40" />
+                <span className="absolute inset-0 animate-ping rounded-full bg-danger/40" />
               )}
               <button
                 type="button"
@@ -388,7 +388,7 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
                 aria-label={listening ? 'Stop listening' : 'Start speaking'}
                 className={`relative flex h-16 w-16 items-center justify-center rounded-full transition-all disabled:opacity-40 ${
                   listening
-                    ? 'bg-red-500 text-white'
+                    ? 'bg-danger text-white'
                     : 'bg-primary text-primary-foreground hover:bg-primary/90'
                 }`}
               >

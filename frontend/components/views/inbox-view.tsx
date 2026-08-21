@@ -281,8 +281,8 @@ export default function InboxView() {
                     {conv.title || 'Untitled Conversation'}
                   </p>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                    conv.status === 'active' ? 'bg-green-500/10 text-green-400' :
-                    conv.status === 'resolved' ? 'bg-blue-500/10 text-blue-400' :
+                    conv.status === 'active' ? 'bg-success/10 text-success' :
+                    conv.status === 'resolved' ? 'bg-primary/10 text-primary' :
                     'bg-muted text-muted-foreground'
                   }`}>
                     {conv.status}
@@ -350,7 +350,7 @@ export default function InboxView() {
                 </button>
                 <button
                   onClick={handleResolve}
-                  className="flex items-center gap-1.5 rounded-lg bg-green-500/10 px-2.5 py-1.5 text-xs font-medium text-green-400 hover:bg-green-500/20 transition-colors md:px-3"
+                  className="flex items-center gap-1.5 rounded-lg bg-success/10 px-2.5 py-1.5 text-xs font-medium text-success hover:bg-success/20 transition-colors md:px-3"
                 >
                   <CheckCircle className="h-3.5 w-3.5" />
                   <span className="hidden md:inline">Resolve</span>

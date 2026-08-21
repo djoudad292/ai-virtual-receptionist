@@ -133,7 +133,7 @@ export default function TeamView() {
                   <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-medium text-primary">
                     {agent.user?.name?.charAt(0)?.toUpperCase() || 'A'}
                     <span
-                      className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card ${agent.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}
+                      className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card ${agent.isOnline ? 'bg-success' : 'bg-gray-400'}`}
                     />
                   </div>
                   <div className="min-w-0">
@@ -144,7 +144,7 @@ export default function TeamView() {
                 <div className="flex items-center gap-2 shrink-0 ml-4">
                   <span
                     className={`hidden sm:inline rounded-full px-2.5 py-1 text-xs font-medium ${
-                      agent.isOnline ? 'bg-green-500/10 text-green-400' : 'bg-secondary text-muted-foreground'
+                      agent.isOnline ? 'bg-success/10 text-success' : 'bg-secondary text-muted-foreground'
                     }`}
                   >
                     {agent.isOnline ? 'Online' : 'Offline'}
@@ -152,7 +152,7 @@ export default function TeamView() {
                   {isAdmin && (
                     <button
                       onClick={() => setConfirmRemove(agent)}
-                      className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:bg-red-500/10 transition-colors"
+                      className="rounded-lg border border-red-500/20 p-2 text-danger hover:bg-danger/10 transition-colors"
                       aria-label={`Remove ${agent.user?.name || 'agent'} from team`}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -178,7 +178,7 @@ export default function TeamView() {
               onClick={copyCredentials}
               className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
             >
-              {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
               Copy
             </button>
           </div>

@@ -204,7 +204,7 @@ export default function SettingsView() {
                     </div>
                     <button
                       onClick={() => setConfirmDeleteDept(dept)}
-                      className="text-muted-foreground hover:text-red-400 transition-colors"
+                      className="text-muted-foreground hover:text-danger transition-colors"
                       aria-label={`Delete department ${dept.name}`}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -316,7 +316,7 @@ export default function SettingsView() {
                 aria-label="Copy embed code"
                 className="absolute right-2 top-2 rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
               </button>
             </div>
           </div>

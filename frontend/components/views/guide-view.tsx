@@ -8,7 +8,7 @@ const sections = [
     id: 'start',
     icon: Rocket,
     title: 'Getting Started',
-    color: 'text-green-400 bg-green-500/10',
+    color: 'text-success bg-success/10',
     steps: [
       'Create your account (or sign in). Sales, Support and Billing departments are created for you automatically.',
       'Add knowledge base documents so the AI has real facts about your business to answer from.',
@@ -20,7 +20,7 @@ const sections = [
     id: 'inbox',
     icon: MessageSquare,
     title: 'Inbox',
-    color: 'text-blue-400 bg-blue-500/10',
+    color: 'text-primary bg-primary/10',
     steps: [
       'All conversations with your visitors appear here in real time.',
       'Click "Talk to your AI" for a hands-free voice conversation with your AI, just like ChatGPT or Gemini — tap the mic, speak, and follow along with live subtitles.',
@@ -79,7 +79,7 @@ const sections = [
     id: 'settings',
     icon: Settings,
     title: 'Settings',
-    color: 'text-slate-400 bg-slate-500/10',
+    color: 'text-fg-muted bg-slate-500/10',
     steps: [
       'Departments: manage the teams the AI routes conversations to (Sales, Support, Billing...).',
       'Widget embed code: the one-line script to add the chat widget to your website.',
@@ -90,7 +90,7 @@ const sections = [
     id: 'tips',
     icon: Send,
     title: 'Tips for better answers',
-    color: 'text-red-400 bg-red-500/10',
+    color: 'text-danger bg-danger/10',
     steps: [
       'Write clear, complete knowledge base content. The AI can only answer what it knows.',
       'Include prices, hours, contact info and common questions in your documents.',

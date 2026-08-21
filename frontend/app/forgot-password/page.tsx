@@ -3,8 +3,9 @@
 import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
-import { MessageSquare, Loader2, MailCheck } from 'lucide-react'
+import { MessageSquare, MailCheck } from 'lucide-react'
 import { useToast } from '@/components/toast'
+import { Button, Input, Card } from '@supportai/ui/web'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -29,61 +30,41 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background p-4 outline-none">
+    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-bg p-4 outline-none">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <MessageSquare className="h-6 w-6 text-primary-foreground" />
+            <MessageSquare className="h-6 w-6 text-primary-fg" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Forgot your password?</h1>
-          <p className="mt-2 text-sm text-muted-foreground">We&apos;ll email you a link to reset it</p>
+          <h1 className="text-2xl font-bold text-fg">Forgot your password?</h1>
+          <p className="mt-2 text-sm text-fg-muted">We&apos;ll email you a link to reset it</p>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-6">
+        <Card className="p-6">
           {sent ? (
             <div className="flex flex-col items-center text-center py-4">
-              <MailCheck className="h-12 w-12 text-green-500 mb-3" />
-              <h2 className="text-lg font-semibold text-foreground">Check your inbox</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                If an account exists for <strong>{email}</strong>, a reset link is on its way. It expires in 1 hour.
+              <MailCheck className="h-12 w-12 text-success mb-3" />
+              <h2 className="text-lg font-semibold text-fg">Check your inbox</h2>
+              <p className="mt-2 text-sm text-fg-muted">
+                If an account exists for {email}, you will receive a reset link shortly.
               </p>
-              <Link href="/login" className="mt-4 font-medium text-primary hover:text-primary/80 transition-colors">
+              <Link href="/login" className="mt-4 text-sm font-medium text-primary hover:underline">
                 Back to sign in
               </Link>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  required
-                  className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send reset link'}
-              </button>
+              <Input id="email" label="Email" type="email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" required />
+              <Button type="submit" loading={loading} fullWidth>Send Reset Link</Button>
+              <p className="text-center text-sm text-fg-muted">
+                Remembered it?{' '}
+                <Link href="/login" className="font-medium text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
             </form>
           )}
-        </div>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Remembered it?{' '}
-          <Link href="/login" className="font-medium text-primary hover:text-primary/80 transition-colors">
-            Sign in
-          </Link>
-        </p>
+        </Card>
       </div>
     </div>
   )

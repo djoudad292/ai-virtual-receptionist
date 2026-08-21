@@ -19,7 +19,7 @@
 
 @layer base {
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-bg text-fg font-sans antialiased;
   }
 
   :focus-visible {
@@ -131,4 +131,70 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
+}
+
+/*
+ * Design tokens — generated from @supportai/ui (packages/ui/src/tokens.ts).
+ * Dark is the default theme; light activates via [data-theme="light"].
+ */
+:root {
+  --bg: #06100c;
+  --surface: #0b1a13;
+  --surface-alt: #10251b;
+  --surface-hover: #163124;
+  --border: #1a3a2b;
+  --border-strong: #285540;
+  --fg: #f2f6ff;
+  --fg-secondary: #a3b3cc;
+  --fg-muted: #7e92b2;
+  --primary: #34d399;
+  --primary-strong: #10b981;
+  --primary-soft: rgba(52, 211, 153, 0.14);
+  --primary-fg: #06100c;
+  --gradient-from: #10b981;
+  --gradient-to: #14b8a6;
+  --accent: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.12);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.13);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.13);
+  --danger: #f87171;
+  --danger-strong: #ef4444;
+  --danger-soft: rgba(248, 113, 113, 0.13);
+  --violet: #a78bfa;
+  --violet-soft: rgba(167, 139, 250, 0.13);
+  --orange: #fb923c;
+  --orange-soft: rgba(251, 146, 60, 0.13);
+  --overlay: rgba(4, 7, 14, 0.72);
+}
+
+[data-theme="light"] {
+  --bg: #f7f9fc;
+  --surface: #ffffff;
+  --surface-alt: #eef2f9;
+  --surface-hover: #e4eaf4;
+  --border: #dce3ef;
+  --border-strong: #c3cee0;
+  --fg: #0c1526;
+  --fg-secondary: #44546e;
+  --fg-muted: #5d6e88;
+  --primary: #047857;
+  --primary-strong: #065f46;
+  --primary-soft: rgba(4, 120, 87, 0.1);
+  --primary-fg: #ffffff;
+  --accent: #0e7490;
+  --accent-soft: rgba(14, 116, 144, 0.1);
+  --success: #047857;
+  --success-soft: rgba(4, 120, 87, 0.1);
+  --warning: #b45309;
+  --warning-soft: rgba(180, 83, 9, 0.1);
+  --danger: #dc2626;
+  --danger-strong: #b91c1c;
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --violet: #7c3aed;
+  --violet-soft: rgba(124, 58, 237, 0.1);
+  --orange: #ea580c;
+  --orange-soft: rgba(234, 88, 12, 0.1);
+  --overlay: rgba(15, 23, 42, 0.45);
 }

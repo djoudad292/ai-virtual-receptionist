@@ -115,7 +115,7 @@ export default function AnalyticsView() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-border bg-card p-5">
               <p className="text-sm text-muted-foreground">Total Chats</p>
-              <p className="mt-2 text-3xl font-bold text-blue-400">{stats.total}</p>
+              <p className="mt-2 text-3xl font-bold text-primary">{stats.total}</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-5">
               <p className="text-sm text-muted-foreground">AI Handled</p>
@@ -130,7 +130,7 @@ export default function AnalyticsView() {
             </div>
             <div className="rounded-xl border border-border bg-card p-5">
               <p className="text-sm text-muted-foreground">Appointments</p>
-              <p className="mt-2 text-3xl font-bold text-green-400">{stats.appointments}</p>
+              <p className="mt-2 text-3xl font-bold text-success">{stats.appointments}</p>
             </div>
           </div>
 
@@ -205,7 +205,7 @@ export default function AnalyticsView() {
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                     <div
-                      className="h-full rounded-full bg-green-500 transition-all"
+                      className="h-full rounded-full bg-success transition-all"
                       style={{ width: `${stats.total > 0 ? (stats.active / stats.total) * 100 : 0}%` }}
                     />
                   </div>
@@ -217,7 +217,7 @@ export default function AnalyticsView() {
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                     <div
-                      className="h-full rounded-full bg-blue-500 transition-all"
+                      className="h-full rounded-full bg-primary transition-all"
                       style={{ width: `${stats.total > 0 ? (resolved / stats.total) * 100 : 0}%` }}
                     />
                   </div>
@@ -229,7 +229,7 @@ export default function AnalyticsView() {
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                     <div
-                      className="h-full rounded-full bg-red-500 transition-all"
+                      className="h-full rounded-full bg-danger transition-all"
                       style={{ width: `${stats.total > 0 ? (stats.unresolved / stats.total) * 100 : 0}%` }}
                     />
                   </div>

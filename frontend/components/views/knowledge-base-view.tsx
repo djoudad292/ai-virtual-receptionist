@@ -213,9 +213,9 @@ export default function KnowledgeBaseView() {
                     <span
                       className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                         doc.status === 'ready'
-                          ? 'bg-green-500/10 text-green-400'
+                          ? 'bg-success/10 text-success'
                           : doc.status === 'error'
-                            ? 'bg-red-500/10 text-red-400'
+                            ? 'bg-danger/10 text-danger'
                             : 'bg-yellow-500/10 text-yellow-400'
                       }`}
                     >
@@ -259,7 +259,7 @@ export default function KnowledgeBaseView() {
                   </button>
                   <button
                     onClick={() => setConfirmDelete(doc)}
-                    className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:bg-red-500/10 transition-colors"
+                    className="rounded-lg border border-red-500/20 p-2 text-danger hover:bg-danger/10 transition-colors"
                     aria-label={`Delete ${doc.title}`}
                   >
                     <Trash2 className="h-4 w-4" />

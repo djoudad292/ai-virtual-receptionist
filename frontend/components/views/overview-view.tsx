@@ -49,8 +49,8 @@ export default function OverviewView({ onNavigate }: { onNavigate: (tab: Tab) =>
   }, [isAuthenticated])
 
   const stats = [
-    { label: 'Total Conversations', value: summary.total, color: 'text-blue-400' },
-    { label: 'Active Chats', value: summary.active, color: 'text-green-400' },
+    { label: 'Total Conversations', value: summary.total, color: 'text-primary' },
+    { label: 'Active Chats', value: summary.active, color: 'text-success' },
     { label: 'Leads Captured', value: summary.leads, color: 'text-purple-400' },
     { label: 'Appointments', value: summary.appointments, color: 'text-orange-400' },
   ]
@@ -70,9 +70,9 @@ export default function OverviewView({ onNavigate }: { onNavigate: (tab: Tab) =>
     { label: 'Open Inbox', desc: 'View and manage conversations', tab: 'inbox', icon: MessageSquare, color: 'bg-primary/10 text-primary' },
     { label: 'View Leads', desc: 'Contacts captured by the AI', tab: 'leads', icon: Users, color: 'bg-purple-500/10 text-purple-400' },
     { label: 'Appointments', desc: 'Meetings booked by the AI', tab: 'appointments', icon: CalendarClock, color: 'bg-orange-500/10 text-orange-400' },
-    { label: 'Knowledge Base', desc: 'Manage your AI training docs', tab: 'knowledge', icon: BookOpen, color: 'bg-green-500/10 text-green-400' },
-    { label: 'View Analytics', desc: 'Track performance metrics', tab: 'analytics', icon: BarChart3, color: 'bg-blue-500/10 text-blue-400' },
-    { label: 'Read the Guide', desc: 'How to use every feature', tab: 'guide', icon: LifeBuoy, color: 'bg-slate-500/10 text-slate-400' },
+    { label: 'Knowledge Base', desc: 'Manage your AI training docs', tab: 'knowledge', icon: BookOpen, color: 'bg-success/10 text-success' },
+    { label: 'View Analytics', desc: 'Track performance metrics', tab: 'analytics', icon: BarChart3, color: 'bg-primary/10 text-primary' },
+    { label: 'Read the Guide', desc: 'How to use every feature', tab: 'guide', icon: LifeBuoy, color: 'bg-slate-500/10 text-fg-muted' },
   ]
 
   return (
@@ -102,7 +102,7 @@ export default function OverviewView({ onNavigate }: { onNavigate: (tab: Tab) =>
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-secondary"
               >
                 {step.done ? (
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-green-400" />
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
                 ) : (
                   <Circle className="h-5 w-5 shrink-0 text-muted-foreground/50" />
                 )}
@@ -153,8 +153,8 @@ export default function OverviewView({ onNavigate }: { onNavigate: (tab: Tab) =>
                     </p>
                   </div>
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    conv.status === 'active' ? 'bg-green-500/10 text-green-400' :
-                    conv.status === 'resolved' ? 'bg-blue-500/10 text-blue-400' :
+                    conv.status === 'active' ? 'bg-success/10 text-success' :
+                    conv.status === 'resolved' ? 'bg-primary/10 text-primary' :
                     'bg-muted text-muted-foreground'
                   }`}>
                     {conv.status}

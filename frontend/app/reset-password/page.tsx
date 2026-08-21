@@ -4,8 +4,9 @@ import { useState, Suspense, type FormEvent } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
-import { MessageSquare, Loader2, CheckCircle2 } from 'lucide-react'
+import { MessageSquare, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/toast'
+import { Button, Input, Card } from '@supportai/ui/web'
 
 function ResetForm() {
   const searchParams = useSearchParams()
@@ -46,82 +47,44 @@ function ResetForm() {
   if (done) {
     return (
       <div className="flex flex-col items-center text-center">
-        <CheckCircle2 className="h-12 w-12 text-green-500 mb-3" />
-        <h2 className="text-xl font-bold text-foreground">Password updated</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Taking you to sign in…</p>
-      </div>
-    )
-  }
-
-  if (!token) {
-    return (
-      <div className="text-center">
-        <h2 className="text-xl font-bold text-foreground">Invalid link</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          This password reset link is missing or invalid.{' '}
-          <Link href="/forgot-password" className="font-medium text-primary">Request a new one</Link>
-        </p>
+        <CheckCircle2 className="h-12 w-12 text-success mb-3" />
+        <h2 className="text-xl font-bold text-fg">Password updated</h2>
+        <p className="mt-2 text-sm text-fg-muted">Redirecting you to sign in…</p>
       </div>
     )
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
-          New Password
-        </label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 8 characters"
-          required
-          className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-      </div>
-      <div>
-        <label htmlFor="confirm" className="block text-sm font-medium text-foreground mb-1">
-          Confirm Password
-        </label>
-        <input
-          id="confirm"
-          type="password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          placeholder="Repeat your password"
-          required
-          className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-        />
-      </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-      >
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reset Password'}
-      </button>
+      <Input id="password" label="New Password" type="password" name="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" required minLength={8} />
+      <Input id="confirm" label="Confirm Password" type="password" name="confirm" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repeat your new password" required />
+      <Button type="submit" loading={loading} fullWidth>Reset Password</Button>
     </form>
   )
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background p-4 outline-none">
+    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-bg p-4 outline-none">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <MessageSquare className="h-6 w-6 text-primary-foreground" />
+            <MessageSquare className="h-6 w-6 text-primary-fg" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Set a new password</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Choose a strong password for your account</p>
+          <h1 className="text-2xl font-bold text-fg">Choose a new password</h1>
+          <p className="mt-2 text-sm text-fg-muted">Make it strong and unique</p>
         </div>
-        <div className="rounded-xl border border-border bg-card p-6">
-          <Suspense fallback={<div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}>
+
+        <Card className="p-6">
+          <Suspense fallback={<div className="py-8 text-center text-sm text-fg-muted">Loading…</div>}>
             <ResetForm />
           </Suspense>
-        </div>
+          <p className="mt-4 text-center text-sm text-fg-muted">
+            <Link href="/login" className="font-medium text-primary hover:underline">
+              Back to sign in
+            </Link>
+          </p>
+        </Card>
       </div>
     </div>
   )

@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import { warmUpBackend } from '@/lib/api'
-import { MessageSquare, Loader2 } from 'lucide-react'
+import { MessageSquare } from 'lucide-react'
 import { useToast } from '@/components/toast'
+import { Button, Input, Logo } from '@supportai/ui/web'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -36,82 +37,55 @@ export default function LoginPage() {
   }
 
   return (
-    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background p-4 outline-none">
+    <div id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-bg p-4 outline-none">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <MessageSquare className="h-6 w-6 text-primary-foreground" />
+            <MessageSquare className="h-6 w-6 text-primary-fg" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-fg">Welcome back</h1>
+          <p className="mt-2 text-sm text-fg-muted">Sign in to your account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              required
-              className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              required
-              className="w-full rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex w-full items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                {waking ? 'Waking up the assistant…' : 'Signing in…'}
-              </>
-            ) : 'Sign In'}
-          </button>
+          <Input
+            id="email"
+            label="Email"
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            required
+          />
+          <Input
+            id="password"
+            label="Password"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter your password"
+            required
+          />
+          <Button type="submit" loading={loading} fullWidth>
+            {waking ? 'Waking up the assistant…' : 'Sign In'}
+          </Button>
         </form>
 
-        <p className="mt-3 text-center">
-          <Link href="/forgot-password" className="text-sm font-medium text-primary hover:text-primary/80 transition-colors">
+        <div className="mt-4 text-center">
+          <Link href="/forgot-password" className="text-sm text-primary hover:underline">
             Forgot your password?
           </Link>
-        </p>
+        </div>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
+        <p className="mt-6 text-center text-sm text-fg-muted">
           Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-medium text-primary hover:text-primary/80 transition-colors">
+          <Link href="/register" className="font-medium text-primary hover:underline">
             Create one
           </Link>
-        </p>
-        <p className="mt-6 text-center text-xs text-muted-foreground/50">
-          Demo by{' '}
-          <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">djaouad.tech</a>
-          {' '}&mdash; Built by{' '}
-          <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">djaouad frih</a>
         </p>
       </div>
     </div>
