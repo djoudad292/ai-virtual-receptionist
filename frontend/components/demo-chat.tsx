@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { MessageSquare, Send, X, Bot, User, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +29,7 @@ interface Message {
 }
 
 export function DemoChat() {
+  const searchParams = useSearchParams()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', text: 'Hi! I\'m the AI Virtual Receptionist. Ask me about our services, pricing, or how to book a meeting.' },
@@ -35,6 +37,12 @@ export function DemoChat() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (searchParams.get('demo') === 'true') {
+      setOpen(true)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
