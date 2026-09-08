@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { Suspense } from 'react'
 import { MessageSquare, Bot, Zap, Users, CalendarClock, BarChart3, FileText, Code2, MessageCircle, Smartphone, Download, ArrowRight, Shield, Globe } from 'lucide-react'
 import { DemoChat } from '@/components/demo-chat'
 
@@ -250,9 +249,7 @@ export default function LandingPage() {
               This chat is powered by the real backend. Ask a question and watch it pull the answer from a published document with retrieval + an LLM — the same experience your visitors get from the embeddable widget.
             </p>
           </div>
-          <Suspense fallback={null}>
-            <DemoChat />
-          </Suspense>
+          <DemoChat />
         </div>
       </section>
 
