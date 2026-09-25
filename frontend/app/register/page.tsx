@@ -8,6 +8,7 @@ import { warmUpBackend } from '@/lib/api'
 import { MessageSquare } from 'lucide-react'
 import { useToast } from '@/components/toast'
 import { Button, Input } from '@supportai/ui/web'
+import { DemoSignpost } from '@/components/demo-signpost'
 
 export default function RegisterPage() {
   const [name, setName] = useState('')
@@ -65,6 +66,8 @@ export default function RegisterPage() {
             Sign in
           </Link>
         </p>
+
+        <DemoSignpost />
       </div>
     </div>
   )

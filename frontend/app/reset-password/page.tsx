@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api'
 import { MessageSquare, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/toast'
 import { Button, Input, Card } from '@supportai/ui/web'
+import { DemoSignpost } from '@/components/demo-signpost'
 
 function ResetForm() {
   const searchParams = useSearchParams()
@@ -85,6 +86,8 @@ export default function ResetPasswordPage() {
             </Link>
           </p>
         </Card>
+
+        <DemoSignpost />
       </div>
     </div>
   )

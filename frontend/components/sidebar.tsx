@@ -47,10 +47,10 @@ export default function Sidebar({ active, onNavigate }: SidebarProps) {
 
       <div className="border-t border-border px-4 py-3">
         <p className="text-xs text-muted-foreground text-center leading-relaxed">
-          AI Virtual Receptionist by <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">djaouad.tech</a>
+          AI Virtual Receptionist by <a href="https://djaouad.is-a.dev" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">djaouad.is-a.dev</a>
           <br />
           Developer{' '}
-          <a href="https://djaouad.tech" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">djaouad frih</a>
+          <a href="https://djaouad.is-a.dev" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">djaouad frih</a>
         </p>
         <p className="mt-1 text-[9px] text-muted-foreground/50 text-center">Postgres + pgvector &middot; OpenRouter</p>
       </div>

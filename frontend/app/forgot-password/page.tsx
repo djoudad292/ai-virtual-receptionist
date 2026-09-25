@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api'
 import { MessageSquare, MailCheck } from 'lucide-react'
 import { useToast } from '@/components/toast'
 import { Button, Input, Card } from '@supportai/ui/web'
+import { DemoSignpost } from '@/components/demo-signpost'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -65,6 +66,8 @@ export default function ForgotPasswordPage() {
             </form>
           )}
         </Card>
+
+        <DemoSignpost />
       </div>
     </div>
   )

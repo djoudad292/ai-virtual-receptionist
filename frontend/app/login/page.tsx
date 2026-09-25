@@ -7,7 +7,8 @@ import { useAuth } from '@/lib/auth-context'
 import { warmUpBackend } from '@/lib/api'
 import { MessageSquare } from 'lucide-react'
 import { useToast } from '@/components/toast'
-import { Button, Input, Logo } from '@supportai/ui/web'
+import { Button, Input } from '@supportai/ui/web'
+import { DemoSignpost } from '@/components/demo-signpost'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -87,6 +88,8 @@ export default function LoginPage() {
             Create one
           </Link>
         </p>
+
+        <DemoSignpost />
       </div>
     </div>
   )
