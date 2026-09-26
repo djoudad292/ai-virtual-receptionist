@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Check } from 'lucide-react'
+import { Check, Mic } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 
 const PORTFOLIO_URL = 'https://djaouad.is-a.dev'
@@ -7,35 +7,35 @@ const APK_URL = 'https://github.com/djoudad292/ai-virtual-receptionist/releases/
 
 const capabilities = [
   {
-    title: 'Answers from your documents',
-    body: 'Upload your FAQ, price list or policies. It replies using that material and shows which document the answer came from.',
+    title: 'Opening hours and directions',
+    body: 'Answers when you are open, which days you close, and how to find you — straight from the hours you publish, never improvised.',
+  },
+  {
+    title: 'Prices and treatments',
+    body: 'Reads your price list back, treatment by treatment, so nothing is guessed and nothing drifts online.',
   },
   {
     title: 'Books appointments in chat',
-    body: 'Collects the name, the slot and a contact number, then writes the appointment to the calendar your team already uses.',
+    body: 'Takes a name, offers two free slots, asks for a number, then confirms the booking — step by step, with nothing to drop.',
   },
   {
-    title: 'Captures leads you would otherwise lose',
-    body: 'Asks for a name and number at the right moment and files the enquiry against the conversation it came from.',
+    title: 'Checks urgent symptoms first',
+    body: 'Red-flag symptoms get the emergency number before a slot is even offered, so nobody is left waiting.',
   },
   {
-    title: 'Routes to the right desk',
-    body: 'Sales, support and billing are separated by intent, so nothing lands in one person’s inbox by accident.',
+    title: 'Hands to the right person',
+    body: 'Sales, support and billing are separated by intent, so nothing lands in one person’s inbox — anything needing judgement goes to your team.',
   },
   {
-    title: 'Hands over to a person',
-    body: 'When a question needs judgement, the conversation is flagged and assigned to an agent who can reply in the same thread.',
-  },
-  {
-    title: 'Works on your site and your phone',
-    body: 'One line of script for the website widget, plus an Android app so you can check conversations away from the desk.',
+    title: 'On site, on phone, in the dashboard',
+    body: 'One snippet on every page drops the chat where visitors already are. The Android app lets you answer away from the desk, and the inbox keeps your team in the loop.',
   },
 ]
 
 const steps = [
-  { title: 'Create an account', body: 'One workspace for your business. You can invite your team later.' },
-  { title: 'Upload what you already know', body: 'A price list or an FAQ is enough to start. Documents can be marked private or published.' },
-  { title: 'Paste one line of script', body: 'Settings gives you the snippet. Visitors get the chat widget on your site straight away.' },
+  { title: 'Set up your front desk', body: 'Add your hours, prices, treatments, the emergency number and who handles what.' },
+  { title: 'One snippet, and it is live', body: 'Drop the widget on your pages and the front desk is open instantly.' },
+  { title: 'Start taking bookings', body: 'Visitors chat, urgent cases go straight to you, bookings land in your calendar.' },
 ]
 
 export default function LandingPage() {
@@ -47,12 +47,10 @@ export default function LandingPage() {
         <section className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
           <div className="max-w-2xl">
             <h1 className="max-w-xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-              A receptionist on your website, answering at 2am
+              A receptionist that answers your website, day and night
             </h1>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-fg-secondary">
-              It answers from your own documents, books appointments, captures enquiries and passes anything
-              complicated to your team. The demo is the same conversation your visitors get, and it runs without an
-              account.
+              It knows your hours, reads your prices, books appointments, triages urgent symptoms and puts anything tricky on to a real person. The demo is the real conversation your visitors get — no account needed.
             </p>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -71,7 +69,7 @@ export default function LandingPage() {
             </div>
 
             <ul className="mt-8 space-y-2 text-sm text-fg-muted">
-              {['No card, no sales call', 'Your documents stay in your workspace', 'Cancel whenever you like'].map(
+              {['No card, no sales call', 'Your notes stay in your workspace', 'Cancel whenever you like'].map(
                 (point) => (
                   <li key={point} className="flex items-center gap-2">
                     <Check aria-hidden className="h-4 w-4 shrink-0 text-primary" />
@@ -85,10 +83,9 @@ export default function LandingPage() {
 
         <section id="what-it-does" className="border-t border-border px-4 py-14">
           <div className="mx-auto max-w-5xl">
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">What it actually does</h2>
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">What the front desk handles</h2>
             <p className="mt-2 max-w-lg text-[15px] text-fg-muted">
-              The parts of a front desk that eat an evening: answering the same question, writing down who called,
-              finding a slot, and knowing who should pick it up.
+              A night shift that never blinks: answering the same question, writing down who called, finding a slot, and knowing who should pick it up.
             </p>
             <div className="mt-8 grid gap-x-10 gap-y-6 sm:grid-cols-2">
               {capabilities.map((c) => (
@@ -113,6 +110,45 @@ export default function LandingPage() {
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
+
+        <section id="hear-it-answer" className="border-t border-border bg-surface px-4 py-14">
+          <div className="mx-auto max-w-5xl">
+            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Hear it answer</h2>
+            <p className="mt-2 max-w-lg text-[15px] text-fg-muted">
+              It does not just chat — it talks back, with live subtitles, in your browser. Toggle Talk in the demo and ask out loud.
+            </p>
+
+            <div className="mt-8 max-w-2xl rounded-xl border border-border bg-bg p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-fg">
+                  <Mic className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 text-xs text-fg-muted">
+                    <span className="inline-block h-2 w-2 rounded-full bg-primary" />
+                    AI is speaking
+                  </p>
+                  <p className="mt-1.5 text-sm leading-relaxed text-fg">
+                    We’re open Monday to Friday 8am to 6pm, Saturday 9 to 1… <span className="text-fg-muted">▎</span>
+                  </p>
+                  <p className="mt-2 text-xs text-fg-muted">
+                    Nothing is recorded or sent — it all stays in your browser.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                <Link
+                  href="/try"
+                  className="bg-primary px-4 py-2 text-sm font-semibold text-primary-fg transition-colors hover:bg-primary-strong"
+                >
+                  Try the voice demo
+                </Link>
+                <span className="text-xs text-fg-muted">Needs Chrome or Edge</span>
+              </div>
+            </div>
           </div>
         </section>
 

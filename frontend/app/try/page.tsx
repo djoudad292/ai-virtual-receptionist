@@ -7,7 +7,7 @@ import { SiteHeader } from '@/components/site-header'
 export const metadata: Metadata = {
   title: 'Try the AI Receptionist — live demo',
   description:
-    'Use the AI receptionist yourself: opening hours, prices, urgent symptoms and a full booking taken in chat. Runs in your browser, no account, nothing sent anywhere.',
+    'Use the AI receptionist yourself: opening hours, prices, urgent symptoms and a full booking taken in chat. Runs in your browser, no account, nothing sent anywhere. Toggle Talk to speak out loud and hear the answer with live subtitles.',
 }
 
 const PORTFOLIO_URL = 'https://djaouad.is-a.dev'
@@ -20,6 +20,10 @@ const WORTH_TRYING = [
   {
     ask: 'I want to book an appointment',
     does: 'Takes the name, offers two free slots, asks for a number, then confirms the booking.',
+  },
+  {
+    ask: 'Tap the mic and ask with your voice',
+    does: 'Toggle Talk, speak your question, and hear the answer back with a live subtitle — still nothing sent anywhere.',
   },
   {
     ask: 'My tooth is broken and it hurts',
@@ -49,8 +53,8 @@ export default function TryPage() {
               </h1>
               <p className="mt-4 max-w-md text-[15px] leading-relaxed text-fg-secondary">
                 This is the same conversation your visitors get, for a sample dental practice in Bristol. Use the
-                buttons or type your own question. It runs in your browser, so nothing you type is sent anywhere and
-                there is nothing to sign up for.
+                buttons, type your own question, or toggle Talk and ask out loud — it answers by voice with live
+                subtitles. Nothing is recorded or sent anywhere; it all runs in your browser.
               </p>
 
               <h2 className="mt-10 text-sm font-semibold tracking-tight">Worth trying</h2>

@@ -1,13 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquare, RotateCcw } from 'lucide-react'
+import { MessageSquare, Mic, MicOff, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /**
  * Public demo conversation. No account, no API call: the guest is answered by a
  * pre-seeded sample tenant so the page stays instant and always works. Swap the
  * handler for a POST to the public widget endpoint to run it against a live tenant.
+ *
+ * Voice "Talk" mode is fully client-side: SpeechRecognition -> send() (the same
+ * state machine as typing) -> speechSynthesis with a karaoke subtitle. Nothing
+ * is recorded or sent anywhere.
  */
 const DEMO_TENANT = {
   name: 'Northside Dental',
@@ -38,12 +42,33 @@ interface Message {
   replies?: string[]
 }
 
+interface SpeechRecognitionInstance {
+  lang: string
+  interimResults: boolean
+  continuous: boolean
+  start: () => void
+  stop: () => void
+  onresult: ((e: any) => void) | null
+  onerror: ((e: any) => void) | null
+  onend: (() => void) | null
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
+
+const SPEECH_LANG = 'en-US'
+
 function normalise(q: string) {
   return q.toLowerCase().replace(/[^a-z0-9\s:]/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 function hasAny(q: string, terms: string[]) {
   return terms.some((term) => q.includes(term))
+}
+
+function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | null {
+  if (typeof window === 'undefined') return null
+  const w = window as any
+  return w.SpeechRecognition || w.webkitSpeechRecognition || null
 }
 
 type Reply = { text: string; replies?: string[]; step?: Step; name?: string; slot?: string }
@@ -119,45 +144,238 @@ export function DemoChat({ className }: { className?: string }) {
   const [input, setInput] = useState('')
   const [pending, setPending] = useState(false)
   const [flow, setFlow] = useState<{ step: Step; name: string; slot: string }>({ step: 'none', name: '', slot: '' })
+
+  const [talkActive, setTalkActive] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
+  const [interim, setInterim] = useState('')
+  const [subtitle, setSubtitle] = useState('')
+  const [voiceError, setVoiceError] = useState('')
+  const [micSupported, setMicSupported] = useState<boolean | null>(null)
+  const [speechSupported, setSpeechSupported] = useState<boolean | null>(null)
+
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const speechRef = useRef<{ timers: number[]; spokenId?: string }>({ timers: [] })
+  const flowRef = useRef(flow)
+  const pendingRef = useRef(false)
+  const talkActiveRef = useRef(false)
+
+  useEffect(() => {
+    setMicSupported(getSpeechRecognitionCtor() !== null)
+    setSpeechSupported('speechSynthesis' in window)
+  }, [])
+
+  useEffect(() => {
+    flowRef.current = flow
+  }, [flow])
+  useEffect(() => {
+    pendingRef.current = pending
+  }, [pending])
+  useEffect(() => {
+    talkActiveRef.current = talkActive
+  }, [talkActive])
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
-  }, [messages, pending])
+  }, [messages, pending, listening])
 
+  const clearSpeechTimers = () => {
+    speechRef.current.timers.forEach((t) => window.clearInterval(t))
+    speechRef.current.timers = []
+  }
+
+  const cancelListening = () => {
+    const r = recognitionRef.current
+    recognitionRef.current = null
+    try {
+      r?.stop()
+    } catch {}
+    setListening(false)
+    setInterim('')
+    setVoiceError('')
+  }
+
+  const cancelSpeech = () => {
+    try {
+      window.speechSynthesis.cancel()
+    } catch {}
+    clearSpeechTimers()
+    speechRef.current.spokenId = undefined
+    setSpeaking(false)
+    setSubtitle('')
+  }
+
+  // Speaks a reception reply with a karaoke subtitle. Driven by the same
+  // reply computed in send(), never invoked on mount or without a user gesture.
+  const speak = (text: string) => {
+    if (!speechSupported) return
+    // Safety: a speaking reply must never overlap with listening.
+    cancelListening()
+    const words = text.split(' ')
+    const spokenId = `${Date.now()}`
+    speechRef.current.spokenId = spokenId
+    let revealed = 0
+
+    const render = () => {
+      if (speechRef.current.spokenId !== spokenId) return
+      setSubtitle(words.slice(0, revealed).join(' ') + (revealed < words.length ? ' ▎' : ''))
+    }
+
+    const finish = () => {
+      if (speechRef.current.spokenId !== spokenId) return
+      speechRef.current.spokenId = undefined
+      clearSpeechTimers()
+      setSpeaking(false)
+      setSubtitle('')
+    }
+
+    setSpeaking(true)
+    render()
+
+    const iv = window.setInterval(() => {
+      if (speechRef.current.spokenId !== spokenId) return
+      if (revealed < words.length - 1) {
+        revealed += 1
+        render()
+      }
+    }, 260)
+    speechRef.current.timers.push(iv)
+
+    const cap = window.setTimeout(finish, Math.min(10000, 1600 + words.length * 220))
+    speechRef.current.timers.push(cap)
+
+    try {
+      const u = new SpeechSynthesisUtterance(text)
+      u.rate = 1
+      u.pitch = 1
+      u.onend = finish
+      u.onerror = () => {}
+      window.speechSynthesis.speak(u)
+    } catch {
+      finish()
+    }
+  }
+
+  // Shared entry point for typed, quick-reply and spoken input. The final voice
+  // transcript is routed here, so the booking flow is identical for voice and text.
   const send = (text: string) => {
     const clean = text.trim()
-    if (!clean || pending) return
+    if (!clean || pendingRef.current) return
+    // A new turn always interrupts in-flight voice first.
+    cancelSpeech()
+    cancelListening()
+    pendingRef.current = true
     setInput('')
+
     setMessages((prev) => [...prev, { role: 'guest', text: clean }, { role: 'reception', text: '' }])
 
     window.setTimeout(() => {
-      const answer = reply(clean, flow.step, flow.name, flow.slot)
+      const answer = reply(clean, flowRef.current.step, flowRef.current.name, flowRef.current.slot)
       setFlow((prev) => ({
         step: answer.step ?? prev.step,
         name: answer.name ?? prev.name,
         slot: answer.slot ?? prev.slot,
       }))
+      pendingRef.current = false
       setPending(false)
       setMessages((prev) => {
         const next = [...prev]
         next[next.length - 1] = { role: 'reception', text: answer.text, replies: answer.replies }
         return next
       })
+      // Speak only replies produced while Talk is enabled, and only as a result
+      // of a user gesture (this send call). The greeting on load is never spoken.
+      if (talkActiveRef.current && speechSupported) speak(answer.text)
     }, 450)
+  }
 
-    setPending(true)
+  const startListening = () => {
+    const SR = getSpeechRecognitionCtor()
+    if (!SR || speaking || pendingRef.current) return
+    // Enabling the mic cancels any speech in progress.
+    cancelSpeech()
+    try {
+      const rec = new SR()
+      rec.lang = SPEECH_LANG
+      rec.interimResults = true
+      rec.continuous = false
+      rec.onresult = (e: any) => {
+        let transcript = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          transcript += e.results[i][0].transcript
+        }
+        setInterim(transcript)
+        if (e.results[e.results.length - 1].isFinal) {
+          const finalText = transcript.trim()
+          setInterim('')
+          setListening(false)
+          if (finalText) send(finalText)
+        }
+      }
+      rec.onerror = (e: any) => {
+        setListening(false)
+        setInterim('')
+        setVoiceError(
+          (e && (e.message === 'not-allowed' || e.error === 'not-allowed' || e.error === 'PermissionDenied'))
+            ? 'Microphone access was denied — check your browser permissions and try again.'
+            : 'Voice input stopped. Check your microphone and try again.',
+        )
+      }
+      rec.onend = () => {
+        setListening(false)
+      }
+      recognitionRef.current = rec
+      setVoiceError('')
+      setListening(true)
+      rec.start()
+    } catch {
+      setListening(false)
+      setInterim('')
+    }
+  }
+
+  const toggleListening = () => {
+    if (speaking || pendingRef.current) return
+    if (listening) cancelListening()
+    else startListening()
+  }
+
+  const toggleTalk = () => {
+    cancelSpeech()
+    cancelListening()
+    setTalkActive((prev) => !prev)
   }
 
   const reset = () => {
+    cancelSpeech()
+    cancelListening()
     setMessages(initialMessages())
     setFlow({ step: 'none', name: '', slot: '' })
+    pendingRef.current = false
+    setPending(false)
     setInput('')
     inputRef.current?.focus()
   }
 
+  useEffect(() => {
+    return () => {
+      cancelSpeech()
+      cancelListening()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const lastReception = [...messages].reverse().find((m) => m.role === 'reception')
+
+  const statusText = speaking
+    ? 'AI is speaking…'
+    : pending
+      ? 'Thinking…'
+      : listening
+        ? 'Listening — speak now'
+        : 'Tap the mic to talk'
 
   return (
     <div className={cn('flex flex-col border border-border bg-surface', className)}>
@@ -167,8 +385,47 @@ export function DemoChat({ className }: { className?: string }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-fg">{DEMO_TENANT.name}</p>
-          <p className="text-xs text-fg-muted">{DEMO_TENANT.role} · {DEMO_TENANT.hours}</p>
+          <p className="truncate text-xs text-fg-muted">{DEMO_TENANT.role} · {DEMO_TENANT.hours}</p>
         </div>
+
+          {micSupported === null ? (
+            <button
+              type="button"
+              disabled
+              aria-pressed={false}
+              className={cn(
+                'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition-colors',
+                'text-fg-muted cursor-not-allowed opacity-60',
+              )}
+            >
+              <Mic className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Talk</span>
+            </button>
+          ) : micSupported ? (
+            <button
+              type="button"
+              onClick={toggleTalk}
+              aria-pressed={talkActive}
+              className={cn(
+                'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition-colors',
+                talkActive
+                  ? 'bg-primary text-primary-fg hover:bg-primary-strong'
+                  : 'text-fg-muted hover:text-fg',
+              )}
+            >
+              <Mic className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Talk</span>
+            </button>
+          ) : (
+            <span
+              className="flex items-center gap-1 text-xs text-fg-muted"
+              title="Voice works in Chrome or Edge"
+            >
+              <MicOff className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Voice in Chrome/Edge</span>
+            </span>
+          )}
+
         <button
           type="button"
           onClick={reset}
@@ -220,6 +477,52 @@ export function DemoChat({ className }: { className?: string }) {
         </div>
       )}
 
+      {talkActive && (
+        <div className="border-t border-border px-4 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleListening}
+              disabled={speaking || pending}
+              aria-label={listening ? 'Stop listening' : 'Start listening'}
+              className={cn(
+                'flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg transition-colors',
+                speaking || pending
+                  ? 'cursor-not-allowed opacity-40'
+                  : listening
+                    ? 'bg-danger text-white hover:bg-danger/80'
+                    : 'bg-primary text-primary-fg hover:bg-primary-strong',
+              )}
+            >
+              {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            </button>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-fg-muted">{statusText}</p>
+              {listening && interim && (
+                <p className="mt-0.5 break-words text-sm text-fg-secondary">{interim}</p>
+              )}
+              {speaking && subtitle && (
+                <p className="mt-0.5 break-words text-sm leading-relaxed text-fg" aria-live="polite">
+                  {subtitle}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {speechSupported === false && micSupported && talkActive && (
+            <p className="mt-2 text-xs text-fg-muted">
+              Speech output is not available in this browser — replies still appear in chat.
+            </p>
+          )}
+          {voiceError && (
+            <p className="mt-2 text-xs text-fg-muted" role="alert">
+              {voiceError}
+            </p>
+          )}
+        </div>
+      )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -235,7 +538,7 @@ export function DemoChat({ className }: { className?: string }) {
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message…"
+          placeholder={talkActive ? 'Type a message or tap the mic…' : 'Type a message…'}
           maxLength={500}
           autoComplete="off"
           className="w-full min-w-0 flex-1 border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-muted focus:border-border-strong focus:outline-none"
@@ -251,6 +554,7 @@ export function DemoChat({ className }: { className?: string }) {
 
       <p className="border-t border-border px-4 py-2 text-xs text-fg-muted">
         Sample practice, running in your browser. No account, nothing sent anywhere.
+        {talkActive && ' Voice uses your mic through the browser — nothing is recorded or uploaded.'}
       </p>
     </div>
   )
