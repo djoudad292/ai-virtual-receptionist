@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MessageSquare, Mic, MicOff, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { pickMaleVoice } from '@/lib/demo-voice'
 
 /**
  * Public demo conversation. No account, no API call: the guest is answered by a
@@ -71,6 +72,14 @@ export function DemoChat({ className }: { className?: string }) {
   useEffect(() => {
     setMicSupported(getSpeechRecognitionCtor() !== null)
     setSpeechSupported('speechSynthesis' in window)
+    // Warm the synthesis voice list early so it is populated by the time the
+    // user talks. Browsers load voices lazily; probing here avoids a first-
+    // utterance delay. Guarded: some browsers throw on a cold call.
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.getVoices()
+      } catch {}
+    }
   }, [])
 
   useEffect(() => {
@@ -118,14 +127,17 @@ export function DemoChat({ className }: { className?: string }) {
     if (!speechSupported) return
     // Safety: a speaking reply must never overlap with listening.
     cancelListening()
-    const words = text.split(' ')
+    // Word offsets drive the karaoke: the subtitle advances in lockstep with
+    // the real audio (onboundary) instead of a blind timer.
+    const words = Array.from(text.matchAll(/\S+/g)).map((m) => ({ w: m[0], start: m.index! }))
     const spokenId = `${Date.now()}`
     speechRef.current.spokenId = spokenId
     let revealed = 0
+    let boundarySeen = false
 
     const render = () => {
       if (speechRef.current.spokenId !== spokenId) return
-      setSubtitle(words.slice(0, revealed).join(' ') + (revealed < words.length ? ' ▎' : ''))
+      setSubtitle(words.slice(0, revealed).map((x) => x.w).join(' ') + (revealed < words.length ? ' ▎' : ''))
     }
 
     const finish = () => {
@@ -139,8 +151,12 @@ export function DemoChat({ className }: { className?: string }) {
     setSpeaking(true)
     render()
 
+    // Estimator fallback: reveal one word every 260ms. It runs only until the
+    // first onboundary event arrives, after which boundary events are the
+    // single source of truth (preserves old behavior on browsers without
+    // boundary events, e.g. Safari).
     const iv = window.setInterval(() => {
-      if (speechRef.current.spokenId !== spokenId) return
+      if (speechRef.current.spokenId !== spokenId || boundarySeen) return
       if (revealed < words.length - 1) {
         revealed += 1
         render()
@@ -148,15 +164,49 @@ export function DemoChat({ className }: { className?: string }) {
     }, 260)
     speechRef.current.timers.push(iv)
 
-    const cap = window.setTimeout(finish, Math.min(10000, 1600 + words.length * 220))
+    // Generous upper bound that cannot cut real speech; finish is idempotent
+    // via spokenId so onend/onerror/cap may all call it.
+    const cap = window.setTimeout(finish, Math.min(60000, 4000 + words.length * 500))
     speechRef.current.timers.push(cap)
+
+    // Chrome pauses long utterances mid-sentence unless synthesis is nudged
+    // back. Resume periodically so a long reply does not silently stop.
+    const poke = window.setInterval(() => {
+      if (speechRef.current.spokenId !== spokenId) return
+      try {
+        window.speechSynthesis.resume()
+      } catch {}
+    }, 8000)
+    speechRef.current.timers.push(poke)
 
     try {
       const u = new SpeechSynthesisUtterance(text)
       u.rate = 1
       u.pitch = 1
+      const male = pickMaleVoice(window.speechSynthesis.getVoices())
+      if (male) u.voice = male
+      u.onboundary = (e: any) => {
+        // 'word' events are the primary signal; some browsers fire undefined.
+        if (e.name !== 'word' && e.name !== undefined) return
+        if (speechRef.current.spokenId !== spokenId) return
+        const idx = typeof e.charIndex === 'number' ? e.charIndex : -1
+        if (idx < 0) return
+        let upto = 0
+        for (let i = 0; i < words.length; i++) {
+          if (words[i].start <= idx) upto = i + 1
+          else break
+        }
+        if (upto > revealed) {
+          revealed = upto
+          if (!boundarySeen) {
+            boundarySeen = true
+            window.clearInterval(iv)
+          }
+          render()
+        }
+      }
       u.onend = finish
-      u.onerror = () => {}
+      u.onerror = () => finish()
       window.speechSynthesis.speak(u)
     } catch {
       finish()
