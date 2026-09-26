@@ -1,0 +1,672 @@
+{
+  "version": 1,
+  "description": "Golden set for the public /try demo conversation (ai-virtual-receptionist frontend). 69 curated cases / ~84 turn assertions across 15 categories. Every turn asserts against the receptionist reply text, suggested chips, and the booking-flow step after that turn. Severity 'critical' cases must all pass before a deploy.",
+  "categories": {
+    "hours": "opening-hours questions",
+    "prices": "pricing and payment questions",
+    "booking": "full multi-turn booking flows",
+    "urgency": "red-flag symptoms outrank booking intent",
+    "human": "handover to a person",
+    "insurance": "insurance and finance",
+    "treatments": "capability questions about services",
+    "location": "address, parking, directions",
+    "contact": "phone/email contact",
+    "smalltalk": "greetings, thanks, identity",
+    "offtopic": "graceful degradation on out-of-scope input",
+    "edge": "empty, emoji, case, whitespace",
+    "flowtrap": "mid-flow questions, name/slot validation, injection",
+    "voice": "short spoken-style utterances (Talk mode transcripts)",
+    "repair": "topic switching across turns"
+  },
+  "cases": [
+    {
+      "id": "h1",
+      "category": "hours",
+      "severity": "normal",
+      "reason": "the single most common prospect question",
+      "turns": [
+        { "input": "What time do you close?", "expect": { "contains": ["08:00", "18:00", "Closed Sundays"], "not_contains": ["I don't have"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "h2",
+      "category": "hours",
+      "severity": "normal",
+      "reason": "Sunday question must surface the closed-days fact",
+      "turns": [
+        { "input": "Are you open on Sunday?", "expect": { "contains": ["Closed Sundays", "Walk-ins"], "not_contains": ["I don't have"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "h3",
+      "category": "hours",
+      "severity": "normal",
+      "reason": "specific day question",
+      "turns": [
+        { "input": "What are your Saturday opening times?", "expect": { "contains": ["Sat 09:00", "13:00"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "h4",
+      "category": "hours",
+      "severity": "normal",
+      "reason": "bank holiday phrasing",
+      "turns": [
+        { "input": "Do you open on bank holidays?", "expect": { "contains": ["bank holidays"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "h5",
+      "category": "hours",
+      "severity": "normal",
+      "reason": "colloquial phrasing plus chip suggestions",
+      "turns": [
+        { "input": "How late are you open today?", "expect": { "contains": ["08:00"], "replies_include": ["Book an appointment", "Where are you?"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "h6",
+      "category": "hours",
+      "severity": "normal",
+      "reason": "walk-in info should be offered with hours",
+      "turns": [
+        { "input": "Is the clinic open now?", "expect": { "contains": ["Walk-ins"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "p1",
+      "category": "prices",
+      "severity": "normal",
+      "reason": "primary price question with follow-up chips",
+      "turns": [
+        { "input": "How much is a check-up?", "expect": { "contains": ["£60"], "replies_include": ["I want to book an appointment", "Do you take my insurance?"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "p2",
+      "category": "prices",
+      "severity": "normal",
+      "reason": "treatment-specific price",
+      "turns": [
+        { "input": "What does teeth whitening cost?", "expect": { "contains": ["£180"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "p3",
+      "category": "prices",
+      "severity": "normal",
+      "reason": "from-price phrasing",
+      "turns": [
+        { "input": "price of a filling", "expect": { "contains": ["from £120"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "p4",
+      "category": "prices",
+      "severity": "normal",
+      "reason": "payment plans are a buying signal",
+      "turns": [
+        { "input": "Do you offer payment plans?", "expect": { "contains": ["instalments", "12 months"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "p5",
+      "category": "prices",
+      "severity": "normal",
+      "reason": "free-first-visit is in the price text but not reachable by keywords",
+      "turns": [
+        { "input": "Is the first visit free?", "expect": { "contains": ["First consultations are free"], "not_contains": ["I don't have"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "p6",
+      "category": "prices",
+      "severity": "normal",
+      "reason": "price question for an unlisted item must still return known prices, not fallback",
+      "turns": [
+        { "input": "How much is a hygienist visit?", "expect": { "contains": ["£60", "X-ray"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "b1",
+      "category": "booking",
+      "severity": "critical",
+      "reason": "canonical full booking happy path (typed prose)",
+      "turns": [
+        { "input": "I want to book an appointment", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah", "Tuesday 10:30 and Thursday 15:00"], "replies_include": ["Tuesday 10:30", "Thursday 15:00"], "step": "slot" } },
+        { "input": "Tuesday 10:30", "expect": { "contains": ["Booked: Sarah, Tuesday 10:30", "confirmation by text", "24 hours"], "step": "phone" } },
+        { "input": "07700 900123", "expect": { "contains": ["appointment confirmed for Sarah on Tuesday 10:30"], "replies_include": ["What are your opening hours?"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "b2",
+      "category": "booking",
+      "severity": "critical",
+      "reason": "booking flow driven by chips including the email-phone opt-out",
+      "turns": [
+        { "input": "Book me in today", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "John Smith", "expect": { "contains": ["Thanks John Smith"], "step": "slot" } },
+        { "input": "Thursday 15:00", "expect": { "contains": ["Booked: John Smith, Thursday 15:00"], "step": "phone" } },
+        { "input": "No, email is fine", "expect": { "contains": ["appointment confirmed for John Smith on Thursday 15:00"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "b3",
+      "category": "booking",
+      "severity": "critical",
+      "reason": "greeting then hours then booking: the realistic cold-outreach path",
+      "turns": [
+        { "input": "Hello", "expect": { "contains": ["How can I help"], "replies_include": ["I want to book an appointment"], "step": "none" } },
+        { "input": "What are your opening hours?", "expect": { "contains": ["08:00"], "step": "none" } },
+        { "input": "I want to book an appointment", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah"], "step": "slot" } },
+        { "input": "Tuesday 10:30", "expect": { "contains": ["Booked: Sarah, Tuesday 10:30"], "step": "phone" } },
+        { "input": "07700 900123", "expect": { "contains": ["appointment confirmed for Sarah on Tuesday 10:30"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "b4",
+      "category": "booking",
+      "severity": "critical",
+      "reason": "urgent symptom answered first, then the offered book-chip completes the flow",
+      "turns": [
+        { "input": "I chipped a tooth this morning", "expect": { "contains": ["0117 496 0182"], "not_contains": ["What name should I put"], "step": "none" } },
+        { "input": "Book me in today", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah"], "step": "slot" } },
+        { "input": "Tuesday 10:30", "expect": { "contains": ["Booked: Sarah, Tuesday 10:30"], "step": "phone" } },
+        { "input": "07700 900123", "expect": { "contains": ["appointment confirmed for Sarah on Tuesday 10:30"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "u1",
+      "category": "urgency",
+      "severity": "critical",
+      "reason": "combined pain+booking intent must never be answered with the name prompt",
+      "turns": [
+        { "input": "My tooth is broken, can I come in?", "expect": { "contains": ["0117 496 0182", "book you in today"], "not_contains": ["What name should I put"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "u2",
+      "category": "urgency",
+      "severity": "critical",
+      "reason": "airway/breathing red flag",
+      "turns": [
+        { "input": "I have facial swelling and difficulty swallowing", "expect": { "contains": ["0117 496 0182"], "not_contains": ["What name should I put"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "u3",
+      "category": "urgency",
+      "severity": "critical",
+      "reason": "knocked-out tooth",
+      "turns": [
+        { "input": "I knocked out a tooth", "expect": { "contains": ["0117 496 0182"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "u4",
+      "category": "urgency",
+      "severity": "critical",
+      "reason": "uncontrolled bleeding",
+      "turns": [
+        { "input": "I'm bleeding heavily", "expect": { "contains": ["0117 496 0182"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "u5",
+      "category": "urgency",
+      "severity": "critical",
+      "reason": "abscess",
+      "turns": [
+        { "input": "I have a terrible abscess", "expect": { "contains": ["0117 496 0182"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "u6",
+      "category": "urgency",
+      "severity": "critical",
+      "reason": "child emergency must outrank the 'filling' treatments keyword",
+      "turns": [
+        { "input": "Urgent: my child swallowed a filling", "expect": { "contains": ["0117 496 0182"], "not_contains": ["What name should I put"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "u7",
+      "category": "urgency",
+      "severity": "critical",
+      "reason": "generic pain phrasing",
+      "turns": [
+        { "input": "I'm in a lot of pain", "expect": { "contains": ["0117 496 0182"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "hm1",
+      "category": "human",
+      "severity": "normal",
+      "reason": "canonical handover phrasing",
+      "turns": [
+        { "input": "Can I speak to a person?", "expect": { "contains": ["practice manager", "ten minutes"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "hm2",
+      "category": "human",
+      "severity": "normal",
+      "reason": "complaint triggers handover",
+      "turns": [
+        { "input": "I'd like to make a complaint", "expect": { "contains": ["practice manager"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "hm3",
+      "category": "human",
+      "severity": "critical",
+      "reason": "'put me through to someone' is a canonical handover phrase missing from keywords",
+      "turns": [
+        { "input": "Put me through to someone", "expect": { "contains": ["practice manager"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "hm4",
+      "category": "human",
+      "severity": "critical",
+      "reason": "'manager' is not in the handover keywords",
+      "turns": [
+        { "input": "I want to speak to your manager", "expect": { "contains": ["practice manager"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "in1",
+      "category": "insurance",
+      "severity": "normal",
+      "reason": "buying-signal question on the chip list",
+      "turns": [
+        { "input": "Do you take my insurance?", "expect": { "contains": ["Bupa", "Denplan"], "replies_include": ["How much is a check-up?"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "in2",
+      "category": "insurance",
+      "severity": "normal",
+      "reason": "specific provider",
+      "turns": [
+        { "input": "Do you accept Denplan?", "expect": { "contains": ["Denplan practice"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "tr1",
+      "category": "treatments",
+      "severity": "normal",
+      "reason": "high-ticket treatment capability question",
+      "turns": [
+        { "input": "Do you do dental implants?", "expect": { "contains": ["implants", "free consultation"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "tr2",
+      "category": "treatments",
+      "severity": "normal",
+      "reason": "brand-name treatment",
+      "turns": [
+        { "input": "Do you offer Invisalign?", "expect": { "contains": ["clear aligners"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "tr3",
+      "category": "treatments",
+      "severity": "normal",
+      "reason": "'appointment' in a capability question must not open the booking flow",
+      "turns": [
+        { "input": "Do you do hygienist appointments?", "expect": { "contains": ["hygienist visits"], "not_fallback": true, "not_contains": ["What name should I put"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "tr4",
+      "category": "treatments",
+      "severity": "normal",
+      "reason": "surgery-adjacent capability",
+      "turns": [
+        { "input": "Do you extract wisdom teeth?", "expect": { "contains": ["extractions"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "tr5",
+      "category": "treatments",
+      "severity": "normal",
+      "reason": "'crowns' appears in the treatments reply but is not a keyword",
+      "turns": [
+        { "input": "Do you do crowns?", "expect": { "contains": ["crowns"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "l1",
+      "category": "location",
+      "severity": "normal",
+      "reason": "basic location question",
+      "turns": [
+        { "input": "Where are you?", "expect": { "contains": ["Clifton Park Road", "free parking"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "l2",
+      "category": "location",
+      "severity": "normal",
+      "reason": "parking is a real patient question",
+      "turns": [
+        { "input": "Is there parking?", "expect": { "contains": ["free parking"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "l3",
+      "category": "location",
+      "severity": "normal",
+      "reason": "public transport directions",
+      "turns": [
+        { "input": "How do I get there by bus?", "expect": { "contains": ["bus stop"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "c1",
+      "category": "contact",
+      "severity": "normal",
+      "reason": "phone number request",
+      "turns": [
+        { "input": "What's your phone number?", "expect": { "contains": ["0117 496 0182"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "c2",
+      "category": "contact",
+      "severity": "normal",
+      "reason": "'address' keyword currently steals email questions into the location branch",
+      "turns": [
+        { "input": "Can I get your email address?", "expect": { "contains": ["call you back"], "not_fallback": true, "not_contains": ["Clifton Park Road"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "s1",
+      "category": "smalltalk",
+      "severity": "critical",
+      "reason": "the bare word 'Hi' misses the 'hi ' keyword (trailing space) and falls through to fallback",
+      "turns": [
+        { "input": "Hi", "expect": { "contains": ["How can I help"], "not_fallback": true, "replies_include": ["I want to book an appointment"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "s2",
+      "category": "smalltalk",
+      "severity": "normal",
+      "reason": "plain greeting works today and must keep working",
+      "turns": [
+        { "input": "Hello", "expect": { "contains": ["How can I help"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "s3",
+      "category": "smalltalk",
+      "severity": "critical",
+      "reason": "thanks after a useful answer must not hit fallback",
+      "turns": [
+        { "input": "Thanks, that's helpful", "expect": { "contains": ["welcome"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "s4",
+      "category": "smalltalk",
+      "severity": "critical",
+      "reason": "closing the conversation politely",
+      "turns": [
+        { "input": "Goodbye", "expect": { "contains": ["Goodbye", "0117 496 0182"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "s5",
+      "category": "smalltalk",
+      "severity": "critical",
+      "reason": "identity question must identify the practice",
+      "turns": [
+        { "input": "Who are you?", "expect": { "contains": ["Northside Dental"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "s6",
+      "category": "smalltalk",
+      "severity": "critical",
+      "reason": "name question must not fall through",
+      "turns": [
+        { "input": "What's your name?", "expect": { "contains": ["Northside Dental"], "not_fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "s7",
+      "category": "smalltalk",
+      "severity": "critical",
+      "reason": "'are you a robot/human' must get a transparent identity answer, not a handover and not fallback",
+      "turns": [
+        { "input": "Are you a robot or a human?", "expect": { "contains": ["virtual", "Northside Dental"], "not_fallback": true, "not_contains": ["practice manager"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "s8",
+      "category": "smalltalk",
+      "severity": "normal",
+      "reason": "capability-list question: the answer text matters, not which branch produced it",
+      "turns": [
+        { "input": "What can you help me with?", "expect": { "contains": ["opening hours", "booking an appointment"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "o1",
+      "category": "offtopic",
+      "severity": "normal",
+      "reason": "weather must degrade gracefully to the capability list",
+      "turns": [
+        { "input": "What's the weather like in Bristol?", "expect": { "fallback": true, "contains": ["opening hours"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "o2",
+      "category": "offtopic",
+      "severity": "normal",
+      "reason": "joke request degrades gracefully",
+      "turns": [
+        { "input": "Tell me a joke", "expect": { "fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "o3",
+      "category": "offtopic",
+      "severity": "normal",
+      "reason": "'book' plus non-dental noun must not start the booking flow",
+      "turns": [
+        { "input": "Book me a table at an Italian restaurant", "expect": { "contains": ["dental appointments"], "not_fallback": true, "not_contains": ["What name should I put"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "o4",
+      "category": "offtopic",
+      "severity": "normal",
+      "reason": "math question degrades gracefully",
+      "turns": [
+        { "input": "What is 2+2?", "expect": { "fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "o5",
+      "category": "offtopic",
+      "severity": "normal",
+      "reason": "script payload must not be echoed anywhere",
+      "turns": [
+        { "input": "<script>alert('hi')</script>", "expect": { "fallback": true, "not_contains": ["<script"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "o6",
+      "category": "offtopic",
+      "severity": "normal",
+      "reason": "out-of-practice-scope question degrades gracefully instead of inventing policy",
+      "turns": [
+        { "input": "Do you treat children?", "expect": { "fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "e1",
+      "category": "edge",
+      "severity": "normal",
+      "reason": "empty string must not crash and must degrade",
+      "turns": [
+        { "input": "", "expect": { "fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "e2",
+      "category": "edge",
+      "severity": "normal",
+      "reason": "emoji-only input normalises to empty and degrades",
+      "turns": [
+        { "input": "😊", "expect": { "fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "e3",
+      "category": "edge",
+      "severity": "normal",
+      "reason": "shouting must still route to hours",
+      "turns": [
+        { "input": "ARE YOU OPEN UPPERCASE", "expect": { "contains": ["08:00"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "e4",
+      "category": "edge",
+      "severity": "normal",
+      "reason": "whitespace-only input degrades",
+      "turns": [
+        { "input": "   ", "expect": { "fallback": true, "step": "none" } }
+      ]
+    },
+    {
+      "id": "f1",
+      "category": "flowtrap",
+      "severity": "critical",
+      "reason": "asking a price question while the flow waits for a name must answer the question, not swallow it as a name, and the flow must survive",
+      "turns": [
+        { "input": "I want to book an appointment", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "Actually, how much is a filling?", "expect": { "contains": ["from £120"], "not_contains": ["Thanks Actually"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah"], "step": "slot" } }
+      ]
+    },
+    {
+      "id": "f2",
+      "category": "flowtrap",
+      "severity": "critical",
+      "reason": "digits must not be accepted as an appointment name",
+      "turns": [
+        { "input": "Book an appointment", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "12345", "expect": { "contains": ["name"], "not_contains": ["Thanks 12345"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah"], "step": "slot" } }
+      ]
+    },
+    {
+      "id": "f3",
+      "category": "flowtrap",
+      "severity": "critical",
+      "reason": "markup injected as a name must never be echoed back",
+      "turns": [
+        { "input": "Book an appointment", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "<img src=x onerror=alert(1)>", "expect": { "contains": ["name"], "not_contains": ["<", "Thanks <"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah"], "step": "slot" } }
+      ]
+    },
+    {
+      "id": "f4",
+      "category": "flowtrap",
+      "severity": "critical",
+      "reason": "vague slot text must re-offer the real slots instead of being booked verbatim",
+      "turns": [
+        { "input": "Book an appointment", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah"], "step": "slot" } },
+        { "input": "next week", "expect": { "contains": ["Tuesday 10:30"], "not_contains": ["Booked: Sarah"], "step": "slot" } },
+        { "input": "Tuesday 10:30", "expect": { "contains": ["Booked: Sarah, Tuesday 10:30"], "step": "phone" } }
+      ]
+    },
+    {
+      "id": "f5",
+      "category": "flowtrap",
+      "severity": "critical",
+      "reason": "asking a question at the slot step must answer it and keep the flow alive",
+      "turns": [
+        { "input": "Book an appointment", "expect": { "contains": ["What name should I put"], "step": "name" } },
+        { "input": "Sarah", "expect": { "contains": ["Thanks Sarah"], "step": "slot" } },
+        { "input": "And how much is a filling?", "expect": { "contains": ["from £120"], "not_contains": ["Booked: Sarah"], "step": "slot" } },
+        { "input": "Thursday 15:00", "expect": { "contains": ["Booked: Sarah, Thursday 15:00"], "step": "phone" } }
+      ]
+    },
+    {
+      "id": "v1",
+      "category": "voice",
+      "severity": "normal",
+      "reason": "spoken transcripts are bare nouns",
+      "turns": [
+        { "input": "hours", "expect": { "contains": ["08:00"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "v2",
+      "category": "voice",
+      "severity": "normal",
+      "reason": "bare plural noun",
+      "turns": [
+        { "input": "prices", "expect": { "contains": ["£60"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "v3",
+      "category": "voice",
+      "severity": "normal",
+      "reason": "single-word booking intent",
+      "turns": [
+        { "input": "book", "expect": { "contains": ["What name should I put"], "step": "name" } }
+      ]
+    },
+    {
+      "id": "v4",
+      "category": "voice",
+      "severity": "critical",
+      "reason": "single-word urgency",
+      "turns": [
+        { "input": "emergency", "expect": { "contains": ["0117 496 0182"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "v5",
+      "category": "voice",
+      "severity": "normal",
+      "reason": "handover with politeness marker",
+      "turns": [
+        { "input": "human please", "expect": { "contains": ["practice manager"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "v6",
+      "category": "voice",
+      "severity": "normal",
+      "reason": "short location utterance",
+      "turns": [
+        { "input": "where are you", "expect": { "contains": ["Clifton Park Road"], "step": "none" } }
+      ]
+    },
+    {
+      "id": "r1",
+      "category": "repair",
+      "severity": "normal",
+      "reason": "switching topic across turns must keep routing fresh",
+      "turns": [
+        { "input": "What are your opening hours?", "expect": { "contains": ["08:00"], "step": "none" } },
+        { "input": "And your prices?", "expect": { "contains": ["£60"], "step": "none" } }
+      ]
+    }
+  ]
+}
