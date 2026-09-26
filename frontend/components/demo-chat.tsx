@@ -134,6 +134,8 @@ export function DemoChat({ className }: { className?: string }) {
     speechRef.current.spokenId = spokenId
     let revealed = 0
     let boundarySeen = false
+    let degraded = false
+    let retriedVoice = false
 
     const render = () => {
       if (speechRef.current.spokenId !== spokenId) return
@@ -146,6 +148,17 @@ export function DemoChat({ className }: { className?: string }) {
       clearSpeechTimers()
       setSpeaking(false)
       setSubtitle('')
+    }
+
+    const degradeToVisual = () => {
+      if (degraded || speechRef.current.spokenId !== spokenId) return
+      degraded = true
+      // Swap the long cap for the old formula so the mic re-enables at the
+      // estimator's natural end, exactly like before this feature existed.
+      const oldCap = window.setTimeout(finish, Math.min(10000, 1600 + words.length * 220))
+      speechRef.current.timers.push(oldCap)
+      // Leave the estimator running (boundarySeen stays false) so the subtitle
+      // keeps marching at 260ms/word — the guaranteed visible feedback.
     }
 
     setSpeaking(true)
@@ -186,6 +199,7 @@ export function DemoChat({ className }: { className?: string }) {
       const male = pickMaleVoice(window.speechSynthesis.getVoices())
       if (male) u.voice = male
       u.onboundary = (e: any) => {
+        if (degraded) return
         // 'word' events are the primary signal; some browsers fire undefined.
         if (e.name !== 'word' && e.name !== undefined) return
         if (speechRef.current.spokenId !== spokenId) return
@@ -205,8 +219,16 @@ export function DemoChat({ className }: { className?: string }) {
           render()
         }
       }
-      u.onend = finish
-      u.onerror = () => finish()
+      u.onend = () => { if (!degraded) finish() }
+      u.onerror = (e: any) => {
+        const err = e && e.error
+        if (err === 'canceled' || err === 'interrupted') { finish(); return }  // our own cancel
+        if (male && !retriedVoice) {
+          retriedVoice = true
+          try { u.voice = null; window.speechSynthesis.speak(u); return } catch {}
+        }
+        degradeToVisual()
+      }
       window.speechSynthesis.speak(u)
     } catch {
       finish()
