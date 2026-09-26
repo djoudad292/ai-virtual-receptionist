@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Check } from 'lucide-react'
-import { DemoChat } from '@/components/demo-chat'
+import { SiteHeader } from '@/components/site-header'
 
 const PORTFOLIO_URL = 'https://djaouad.is-a.dev'
 const APK_URL = 'https://github.com/djoudad292/ai-virtual-receptionist/releases/download/latest-apk-receptionist/ai-receptionist.apk'
@@ -41,74 +41,45 @@ const steps = [
 export default function LandingPage() {
   return (
     <div id="main" tabIndex={-1} className="min-h-screen bg-bg text-fg outline-none">
-      <header className="sticky top-0 z-40 border-b border-border bg-bg">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <span className="text-sm font-semibold tracking-tight">Receptionist</span>
-          <nav className="flex items-center gap-4 text-sm">
-            <a href="#what-it-does" className="hidden text-fg-muted transition-colors hover:text-fg sm:inline">
-              What it does
-            </a>
-            <a href="#how-it-works" className="hidden text-fg-muted transition-colors hover:text-fg sm:inline">
-              How it works
-            </a>
-            <Link href="/login" className="text-fg-muted transition-colors hover:text-fg">
-              Sign in
-            </Link>
-            <Link href="/register" className="border border-border px-3 py-1.5 font-medium transition-colors hover:border-border-strong">
-              Create account
-            </Link>
-          </nav>
-        </div>
-        <p className="border-t border-border px-4 py-1.5 text-center text-xs text-fg-muted">
-          Built by Djaouad Frih · Want this for your business?{' '}
-          <a href={PORTFOLIO_URL} target="_blank" rel="noopener noreferrer" className="text-fg-secondary underline underline-offset-2 hover:text-fg">
-            {PORTFOLIO_URL}
-          </a>
-        </p>
-      </header>
+      <SiteHeader withSectionLinks />
 
       <main>
         <section className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
-          <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-12">
-            <div className="min-w-0 lg:pt-6">
-              <h1 className="max-w-xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-                A receptionist on your website, answering at 2am
-              </h1>
-              <p className="mt-4 max-w-md text-[15px] leading-relaxed text-fg-secondary">
-                It answers from your own documents, books appointments, captures enquiries and passes anything
-                complicated to your team. You can try the whole thing right here before you create anything.
-              </p>
+          <div className="max-w-2xl">
+            <h1 className="max-w-xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+              A receptionist on your website, answering at 2am
+            </h1>
+            <p className="mt-4 max-w-md text-[15px] leading-relaxed text-fg-secondary">
+              It answers from your own documents, books appointments, captures enquiries and passes anything
+              complicated to your team. The demo is the same conversation your visitors get, and it runs without an
+              account.
+            </p>
 
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <a
-                  href="#try-it"
-                  className="bg-primary px-4 py-2 text-sm font-semibold text-primary-fg transition-colors hover:bg-primary-strong"
-                >
-                  Try the demo
-                </a>
-                <Link
-                  href="/register"
-                  className="border border-border px-4 py-2 text-sm font-semibold text-fg-secondary transition-colors hover:border-border-strong hover:text-fg"
-                >
-                  Create a free account
-                </Link>
-              </div>
-
-              <ul className="mt-8 space-y-2 text-sm text-fg-muted">
-                {['No card, no sales call', 'Your documents stay in your workspace', 'Cancel whenever you like'].map(
-                  (point) => (
-                    <li key={point} className="flex items-center gap-2">
-                      <Check aria-hidden className="h-4 w-4 shrink-0 text-primary" />
-                      {point}
-                    </li>
-                  ),
-                )}
-              </ul>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Link
+                href="/try"
+                className="bg-primary px-5 py-2.5 text-sm font-semibold text-primary-fg transition-colors hover:bg-primary-strong"
+              >
+                Try it now — no signup
+              </Link>
+              <Link
+                href="/register"
+                className="border border-border px-4 py-2.5 text-sm font-semibold text-fg-secondary transition-colors hover:border-border-strong hover:text-fg"
+              >
+                Create a free account
+              </Link>
             </div>
 
-            <div id="try-it" className="min-w-0 scroll-mt-28">
-              <DemoChat />
-            </div>
+            <ul className="mt-8 space-y-2 text-sm text-fg-muted">
+              {['No card, no sales call', 'Your documents stay in your workspace', 'Cancel whenever you like'].map(
+                (point) => (
+                  <li key={point} className="flex items-center gap-2">
+                    <Check aria-hidden className="h-4 w-4 shrink-0 text-primary" />
+                    {point}
+                  </li>
+                ),
+              )}
+            </ul>
           </div>
         </section>
 
@@ -168,15 +139,23 @@ export default function LandingPage() {
           <div className="mx-auto max-w-3xl">
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Try it, then decide</h2>
             <p className="mt-2 text-[15px] leading-relaxed text-fg-secondary">
-              The demo above is the same conversation your visitors get. When it looks useful, create a workspace and
-              point it at your own documents — that part takes an hour.
+              The demo is the same conversation your visitors get: hours, prices, an urgent symptom handled sensibly, and
+              an appointment booked end to end. It needs no account, so you can judge it before handing over anything.
             </p>
-            <Link
-              href="/register"
-              className="mt-6 inline-block bg-primary px-4 py-2 text-sm font-semibold text-primary-fg transition-colors hover:bg-primary-strong"
-            >
-              Create a free account
-            </Link>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Link
+                href="/try"
+                className="bg-primary px-5 py-2.5 text-sm font-semibold text-primary-fg transition-colors hover:bg-primary-strong"
+              >
+                Try it now — no signup
+              </Link>
+              <Link
+                href="/register"
+                className="border border-border px-4 py-2.5 text-sm font-semibold text-fg-secondary transition-colors hover:border-border-strong hover:text-fg"
+              >
+                Create a free account
+              </Link>
+            </div>
           </div>
         </section>
       </main>
