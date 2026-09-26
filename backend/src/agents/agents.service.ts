@@ -55,7 +55,7 @@ export class AgentsService {
       isOnline: false,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'https://chat.djaouad.tech';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://chat.djaouad.is-a.dev';
     const loginUrl = `${frontendUrl}/login`;
     const mail = this.mailService.buildInviteEmail(loginUrl, user.name, email.trim().toLowerCase(), tempPassword);
     await this.mailService.send({ to: email.trim().toLowerCase(), ...mail });

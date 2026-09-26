@@ -35,7 +35,7 @@ export class MailService {
   }
 
   private get fromEmail(): string {
-    return process.env.MAIL_FROM_EMAIL || 'no-reply@receptionist.djaouad.tech';
+    return process.env.MAIL_FROM_EMAIL || 'no-reply@djaouad.is-a.dev';
   }
 
   async send(mail: MailOptions): Promise<boolean> {
