@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Receptionist — an AI receptionist for your website',
   description:
-    'A receptionist that answers from your own documents, books appointments and captures enquiries. Try the live demo without an account. Built by Djaouad Frih.',
+    'Front desk for your website, day and night: hours, prices, bookings, urgent symptoms, and a human. Try the live demo without an account. Built by Djaouad Frih.',
 }
 
 export default function RootLayout({
