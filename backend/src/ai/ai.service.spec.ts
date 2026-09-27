@@ -289,3 +289,41 @@ describe('AIService generateResponse mode parameter', () => {
     expect(result.steps).toBeUndefined();
   });
 });
+
+describe('AIService.shouldFallbackToGemini', () => {
+  let aiService: AIService;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AIService,
+        { provide: StoreService, useValue: {} },
+        { provide: MailService, useValue: {} },
+      ],
+    }).compile();
+    aiService = moduleRef.get(AIService);
+    jest.clearAllMocks();
+  });
+
+  const fn = (msg: string) => (aiService as any).shouldFallbackToGemini(msg);
+
+  it('returns true for 402 insufficient credits', () => {
+    expect(fn('OpenRouter HTTP 402: insufficient credits')).toBe(true);
+  });
+
+  it('returns true for 429 free-models-per-day', () => {
+    expect(fn('Rate limit exceeded: free-models-per-day')).toBe(true);
+  });
+
+  it('returns true for HTTP 429 rate limit exceeded', () => {
+    expect(fn('OpenRouter HTTP 429: rate limit exceeded')).toBe(true);
+  });
+
+  it('returns false for transient 503', () => {
+    expect(fn('OpenRouter HTTP 503: request queue is full')).toBe(false);
+  });
+
+  it('returns false for generic text', () => {
+    expect(fn('something else happened')).toBe(false);
+  });
+});

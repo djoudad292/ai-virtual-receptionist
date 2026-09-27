@@ -250,6 +250,10 @@ export class AIService {
     }
   }
 
+  private shouldFallbackToGemini(msg: string): boolean {
+    return /HTTP 402|insufficient credits|payment|billing|HTTP 429|free-models-per-day|rate.?limit/i.test(msg);
+  }
+
   // LLM chat (OpenRouter primary, Gemini fallback when credits run out)
   private async chat(messages: { role: string; content: string }[], maxTokens = 1024): Promise<string | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -287,8 +291,12 @@ export class AIService {
         return typeof content === 'string' && content.trim() ? content : null;
       } catch (err) {
         const msg = (err as Error).message;
+        if (this.shouldFallbackToGemini(msg)) {
+          this.logger.warn(`OpenRouter quota/billing limit, falling back to Gemini: ${msg}`);
+          return this.chatGemini(messages, maxTokens);
+        }
         const isRetryable =
-          /HTTP 503|HTTP 429|HTTP 5\d\d|request queue is full|temporarily overloaded|rate.?limit/i.test(msg);
+          /HTTP 503|HTTP 5\d\d|request queue is full|temporarily overloaded/i.test(msg);
         if (isRetryable && attempt < maxRetries) {
           const delay = 1000 * Math.pow(2, attempt - 1);
           this.logger.warn(
@@ -298,10 +306,6 @@ export class AIService {
           continue;
         }
         this.logger.error(`OpenRouter generation failed: ${msg}`);
-        // Insufficient credits / billing failures -> fall back to Gemini.
-        if (/HTTP 402|insufficient credits|payment|billing/i.test(msg)) {
-          return this.chatGemini(messages, maxTokens);
-        }
         return null;
       }
     }
@@ -418,15 +422,16 @@ export class AIService {
         return { content, toolCalls };
       } catch (err) {
         const msg = (err as Error).message;
-        const isRetryable = /HTTP 503|HTTP 429|HTTP 5\d\d|request queue is full|temporarily overloaded|rate.?limit/i.test(msg);
+        if (this.shouldFallbackToGemini(msg)) {
+          this.logger.warn(`OpenRouter quota/billing limit, falling back to Gemini: ${msg}`);
+          return this.chatGeminiWithTools(messages, tools, maxTokens);
+        }
+        const isRetryable = /HTTP 503|HTTP 5\d\d|request queue is full|temporarily overloaded/i.test(msg);
         if (isRetryable && attempt < maxRetries) {
           const delay = 1000 * Math.min(2 ** (attempt - 1), 4) + Math.random() * 500;
           this.logger.warn(`OpenRouter retry ${attempt}/${maxRetries - 1} after ${delay}ms: ${msg}`);
           await new Promise((r) => setTimeout(r, delay));
           continue;
-        }
-        if (/HTTP 402|insufficient credits|payment|billing/i.test(msg)) {
-          return this.chatGeminiWithTools(messages, tools, maxTokens);
         }
         throw err;
       }
