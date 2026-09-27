@@ -2,12 +2,13 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { DemoChat } from '@/components/demo-chat'
+import { DemoUpload } from '@/components/demo-upload'
 import { SiteHeader } from '@/components/site-header'
 
 export const metadata: Metadata = {
   title: 'Try the AI Receptionist — live demo',
   description:
-    'Use the AI receptionist yourself: opening hours, prices, urgent symptoms and a full booking taken in chat. Runs in your browser, no account, nothing sent anywhere. Toggle Talk to speak out loud and hear the answer with live subtitles.',
+    'Use the AI receptionist yourself: opening hours, prices, urgent symptoms and a full booking taken in chat. Answers come from the live knowledge base when it is reachable, with built-in demo rules as offline fallback. Toggle Talk to speak out loud and hear the answer with live subtitles.',
 }
 
 const PORTFOLIO_URL = 'https://djaouad.is-a.dev'
@@ -23,7 +24,7 @@ const WORTH_TRYING = [
   },
   {
     ask: 'Tap the mic and ask with your voice',
-    does: 'Toggle Talk, speak your question, and hear the answer back with a live subtitle — still nothing sent anywhere.',
+    does: 'Toggle Talk, speak your question, and hear the answer back with a live subtitle — voice stays on-device.',
   },
   {
     ask: 'My tooth is broken and it hurts',
@@ -54,7 +55,8 @@ export default function TryPage() {
               <p className="mt-4 max-w-md text-[15px] leading-relaxed text-fg-secondary">
                 This is the same conversation your visitors get, for a sample dental practice in Bristol. Use the
                 buttons, type your own question, or toggle Talk and ask out loud — it answers by voice with live
-                subtitles. Nothing is recorded or sent anywhere; it all runs in your browser.
+                subtitles. Answers use the live knowledge base when the API is reachable, with built-in demo rules as
+                the offline fallback.
               </p>
 
               <h2 className="mt-10 text-sm font-semibold tracking-tight">Worth trying</h2>
@@ -97,6 +99,12 @@ export default function TryPage() {
             >
               How it works
             </Link>
+          </div>
+        </section>
+
+        <section className="border-t border-border px-4 py-10">
+          <div className="mx-auto max-w-5xl">
+            <DemoUpload />
           </div>
         </section>
       </main>

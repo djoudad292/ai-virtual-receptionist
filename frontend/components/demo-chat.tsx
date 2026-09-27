@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { MessageSquare, Mic, MicOff, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { pickMaleVoice } from '@/lib/demo-voice'
+import { askDemo, getDemoAppointments, createDemoSessionId, type DemoAppointment } from '@/lib/demo-api'
 
 /**
  * Public demo conversation. No account, no API call: the guest is answered by a
@@ -62,6 +63,10 @@ export function DemoChat({ className }: { className?: string }) {
 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const sessionIdRef = useRef<string>(createDemoSessionId())
+
+  const [appointments, setAppointments] = useState<DemoAppointment[]>([])
+  const [docsNoteIndex, setDocsNoteIndex] = useState<number | null>(null)
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const speechRef = useRef<{ timers: number[]; spokenId?: string }>({ timers: [] })
@@ -235,6 +240,32 @@ export function DemoChat({ className }: { className?: string }) {
     }
   }
 
+  const refreshAppointments = useCallback(async () => {
+    // Silent: a lost connection must not break the chat.
+    try {
+      const data = await getDemoAppointments(sessionIdRef.current)
+      setAppointments(data.appointments ?? [])
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    refreshAppointments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshAppointments])
+
+  // Shared tail of a turn: clear the pending flag, paint the reception reply,
+  // and speak it only when Talk is on (the greeting on load is never spoken).
+  const finishMessage = (text: string, replies?: string[]) => {
+    pendingRef.current = false
+    setPending(false)
+    setMessages((prev) => {
+      const next = [...prev]
+      next[next.length - 1] = { role: 'reception', text, replies }
+      return next
+    })
+    if (talkActiveRef.current && speechSupported) speak(text)
+  }
+
   // Shared entry point for typed, quick-reply and spoken input. The final voice
   // transcript is routed here, so the booking flow is identical for voice and text.
   const send = (text: string) => {
@@ -244,27 +275,54 @@ export function DemoChat({ className }: { className?: string }) {
     cancelSpeech()
     cancelListening()
     pendingRef.current = true
+    setDocsNoteIndex(null)
     setInput('')
 
     setMessages((prev) => [...prev, { role: 'guest', text: clean }, { role: 'reception', text: '' }])
 
-    window.setTimeout(() => {
-      const answer = reply(clean, flowRef.current.step, flowRef.current.name, flowRef.current.slot)
-      setFlow((prev) => ({
-        step: answer.step ?? prev.step,
-        name: answer.name ?? prev.name,
-        slot: answer.slot ?? prev.slot,
-      }))
-      pendingRef.current = false
-      setPending(false)
-      setMessages((prev) => {
-        const next = [...prev]
-        next[next.length - 1] = { role: 'reception', text: answer.text, replies: answer.replies }
-        return next
-      })
-      // Speak only replies produced while Talk is enabled, and only as a result
-      // of a user gesture (this send call). The greeting on load is never spoken.
-      if (talkActiveRef.current && speechSupported) speak(answer.text)
+    window.setTimeout(async () => {
+      // The multi-turn booking flow is fully local and untouched by the backend.
+      // It stays byte-for-byte identical to the original state machine.
+      if (flowRef.current.step !== 'none') {
+        const answer = reply(clean, flowRef.current.step, flowRef.current.name, flowRef.current.slot)
+        setFlow((prev) => ({
+          step: answer.step ?? prev.step,
+          name: answer.name ?? prev.name,
+          slot: answer.slot ?? prev.slot,
+        }))
+        finishMessage(answer.text, answer.replies)
+        return
+      }
+
+      // RAG-first: ask the live knowledge base (practice profile + this
+      // visitor's uploads). On any failure — network, timeout, empty response —
+      // fall back to the local rules, which are the eval golden set.
+      let answered = false
+      try {
+        const result = await askDemo(sessionIdRef.current, clean)
+        const responseText = result?.response?.trim() ?? ''
+        if (responseText) {
+          answered = true
+          // The new reception message sits at the end of the list we just
+          // appended (guest + empty reception). `messages` is still the
+          // pre-update render value, so its length + 1 is that index.
+          if (result.sources?.length > 0) setDocsNoteIndex(messages.length + 1)
+          finishMessage(responseText, QUICK_REPLIES)
+          refreshAppointments()
+        }
+      } catch {
+        // fall through to the local rules
+      }
+
+      if (!answered) {
+        const answer = reply(clean, flowRef.current.step, flowRef.current.name, flowRef.current.slot)
+        setFlow((prev) => ({
+          step: answer.step ?? prev.step,
+          name: answer.name ?? prev.name,
+          slot: answer.slot ?? prev.slot,
+        }))
+        finishMessage(answer.text, answer.replies)
+      }
     }, 450)
   }
 
@@ -429,6 +487,9 @@ export function DemoChat({ className }: { className?: string }) {
             >
               {msg.text || <span className="text-fg-muted">…</span>}
             </p>
+            {msg.role === 'reception' && i === docsNoteIndex && (
+              <p className="mt-1 max-w-[85%] px-1 text-[11px] text-fg-muted">answered from your documents</p>
+            )}
           </div>
         ))}
         {pending && (
@@ -438,6 +499,27 @@ export function DemoChat({ className }: { className?: string }) {
         )}
         <div ref={endRef} />
       </div>
+
+      {appointments.length > 0 && (
+        <div className="border-t border-border px-4 py-3">
+          <p className="mb-2 text-xs font-semibold text-fg">This session</p>
+          <ul className="space-y-1.5">
+            {appointments.map((appt, i) => {
+              const name = typeof appt.customerName === 'string' ? appt.customerName : ''
+              const when = [appt.date, appt.time].filter(Boolean).join(' · ') || appt.title || ''
+              return (
+                <li key={i} className="flex items-center gap-2 text-sm text-fg-secondary">
+                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                  <span className="truncate">
+                    {name}
+                    {when ? ` · ${when}` : ''}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
 
       {lastReception?.replies && !pending && (
         <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
@@ -530,8 +612,9 @@ export function DemoChat({ className }: { className?: string }) {
       </form>
 
       <p className="border-t border-border px-4 py-2 text-xs text-fg-muted">
-        Sample practice, running in your browser. No account, nothing sent anywhere.
-        {talkActive && ' Voice uses your mic through the browser — nothing is recorded or uploaded.'}
+        Sample practice. Answers use the live knowledge base (the practice profile and your uploads) when the
+        API is reachable, with built-in demo rules as the offline fallback. Voice stays on-device — your mic is
+        used only while you talk.
       </p>
     </div>
   )

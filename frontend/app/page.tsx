@@ -134,7 +134,8 @@ export default function LandingPage() {
                     We’re open Monday to Friday 8am to 6pm, Saturday 9 to 1… <span className="text-fg-muted">▎</span>
                   </p>
                   <p className="mt-2 text-xs text-fg-muted">
-                    Nothing is recorded or sent — it all stays in your browser.
+                    Answers use the live knowledge base when the API is reachable, with built-in demo rules as
+                    offline fallback. Voice stays on-device.
                   </p>
                 </div>
               </div>
