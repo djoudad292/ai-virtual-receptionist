@@ -130,8 +130,10 @@ export async function runReceptionistGraph(params: {
 
   const systemPrompt = buildSystemPrompt(company, departmentNames, context, companyId);
 
-  const llm = createLLM();
-  const llmWithTools = llm.bindTools(tools);
+  const { primary, fallback } = createLLM();
+  const llmWithTools = fallback
+    ? primary.bindTools(tools).withFallbacks({ fallbacks: [fallback.bindTools(tools)] })
+    : primary.bindTools(tools);
 
   const agentNode = async (state: typeof StateAnnotation.State) => {
     const response = await llmWithTools.invoke(state.messages);
@@ -292,10 +294,13 @@ export async function runReceptionistGraph(params: {
   };
 }
 
-function createLLM() {
+export function createLLM(): { primary: ChatOpenAI; fallback: ChatOpenAI | null } {
   const openrouterKey = process.env.OPENROUTER_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  let primary: ChatOpenAI;
   if (openrouterKey) {
-    return new ChatOpenAI({
+    primary = new ChatOpenAI({
       modelName: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
       apiKey: openrouterKey,
       configuration: {
@@ -308,11 +313,8 @@ function createLLM() {
       temperature: 0.5,
       maxTokens: 1024,
     });
-  }
-
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey) {
-    return new ChatOpenAI({
+  } else if (geminiKey) {
+    primary = new ChatOpenAI({
       modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
       apiKey: geminiKey,
       configuration: {
@@ -321,9 +323,24 @@ function createLLM() {
       temperature: 0.5,
       maxTokens: 1024,
     });
+  } else {
+    throw new Error('No LLM API key configured (OPENROUTER_API_KEY or GEMINI_API_KEY)');
   }
 
-  throw new Error('No LLM API key configured (OPENROUTER_API_KEY or GEMINI_API_KEY)');
+  const fallback: ChatOpenAI | null =
+    openrouterKey && geminiKey
+      ? new ChatOpenAI({
+          modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+          apiKey: geminiKey,
+          configuration: {
+            baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+          },
+          temperature: 0.5,
+          maxTokens: 1024,
+        })
+      : null;
+
+  return { primary, fallback };
 }
 
 function buildSystemPrompt(company: any, departments: any[], context: string, companyId: string): string {

@@ -5,7 +5,58 @@ jest.mock('@langchain/openai', () => ({
 }));
 
 import { ChatOpenAI } from '@langchain/openai';
-import { runReceptionistGraph } from './agent.graph';
+import { runReceptionistGraph, createLLM } from './agent.graph';
+
+describe('createLLM', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    jest.clearAllMocks();
+  });
+
+  it('returns primary and a non-null fallback when both keys are set', () => {
+    process.env.OPENROUTER_API_KEY = 'or-key';
+    process.env.GEMINI_API_KEY = 'gem-key';
+
+    const { primary, fallback } = createLLM();
+
+    expect(primary).toBeInstanceOf(ChatOpenAI);
+    expect(fallback).not.toBeNull();
+    expect(primary).not.toBe(fallback);
+    expect(ChatOpenAI).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns null fallback when only OPENROUTER_API_KEY is set', () => {
+    delete process.env.GEMINI_API_KEY;
+    process.env.OPENROUTER_API_KEY = 'or-key';
+
+    const { primary, fallback } = createLLM();
+
+    expect(primary).toBeInstanceOf(ChatOpenAI);
+    expect(fallback).toBeNull();
+    expect(ChatOpenAI).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns primary and null fallback when only GEMINI_API_KEY is set', () => {
+    delete process.env.OPENROUTER_API_KEY;
+    process.env.GEMINI_API_KEY = 'gem-key';
+
+    const { primary, fallback } = createLLM();
+
+    expect(primary).toBeInstanceOf(ChatOpenAI);
+    expect(fallback).toBeNull();
+    expect(ChatOpenAI).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws when neither key is configured', () => {
+    delete process.env.OPENROUTER_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+
+    expect(() => createLLM()).toThrow(/No LLM API key configured/);
+    expect(ChatOpenAI).not.toHaveBeenCalled();
+  });
+});
 
 describe('runReceptionistGraph trace', () => {
   let store: { [key: string]: jest.Mock };
@@ -17,6 +68,7 @@ describe('runReceptionistGraph trace', () => {
 
   beforeAll(() => {
     process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
+    delete process.env.GEMINI_API_KEY;
   });
 
   afterAll(() => {
@@ -29,9 +81,11 @@ describe('runReceptionistGraph trace', () => {
       invoke.mockImplementationOnce(() => Promise.resolve(response));
     }
     invoke.mockImplementation(() => Promise.resolve(new AIMessage({ content: '{"reply":"done","intent":"question"}' })));
-    (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => ({
-      bindTools: () => ({ invoke }),
-    }));
+    (ChatOpenAI as unknown as jest.Mock).mockImplementation(() => {
+      const bound: any = { invoke };
+      bound.withFallbacks = () => bound;
+      return { bindTools: () => bound };
+    });
   }
 
   beforeEach(() => {
