@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { DemoService } from './demo.service';
+import { DemoService, buildIntakeContext } from './demo.service';
 import { DemoController } from './demo.controller';
 import { StoreService } from '../common/store.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -406,5 +406,203 @@ describe('DemoService', () => {
     expect(result.documents[0]).toEqual(
       expect.objectContaining({ id: 't1', title: 'Upload 1' }),
     );
+  });
+});
+
+describe('buildIntakeContext', () => {
+  const baseRow = (overrides: Partial<Record<string, unknown>> = {}) =>
+    ({
+      sessionId: 'session-1',
+      title: null,
+      fullName: 'John Doe',
+      phone: null,
+      email: null,
+      preferredAt: null,
+      reason: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    });
+
+  it('returns null for a null row', () => {
+    expect(buildIntakeContext(null)).toBeNull();
+  });
+
+  it('always includes the visitor name and omits null optional fields', () => {
+    const ctx = buildIntakeContext(baseRow());
+    expect(ctx).toBe('Visitor details: name John Doe. Use these naturally when relevant.');
+    expect(ctx).toContain('name John Doe');
+    expect(ctx).not.toMatch(/title|phone|email|preferred appointment|reason/);
+  });
+
+  it('includes each optional field only when set', () => {
+    const ctx = buildIntakeContext(
+      baseRow({
+        title: 'Dr',
+        phone: '+447700900123',
+        email: 'dr@example.com',
+        preferredAt: '2026-01-01T10:00:00.000Z',
+        reason: 'I need a checkup',
+      }),
+    );
+    expect(ctx).toContain('title Dr');
+    expect(ctx).toContain('name John Doe');
+    expect(ctx).toContain('phone +447700900123');
+    expect(ctx).toContain('email dr@example.com');
+    expect(ctx).toContain('preferred appointment 2026-01-01T10:00:00.000Z');
+    expect(ctx).toContain('reason "I need a checkup"');
+    expect(ctx).toMatch(/^Visitor details:/);
+    expect(ctx?.endsWith('Use these naturally when relevant.')).toBe(true);
+  });
+
+  it('formats the reason with surrounding double quotes', () => {
+    const ctx = buildIntakeContext(baseRow({ reason: 'tooth pain' }));
+    expect(ctx).toContain('reason "tooth pain"');
+  });
+
+  it('produces a single paragraph (no newlines) and caps length at 600 for an over-long reason', () => {
+    const ctx = buildIntakeContext(baseRow({ reason: 'x'.repeat(700) }));
+    expect(ctx).not.toContain('\n');
+    expect(ctx).not.toContain('\r');
+    expect(ctx!.length).toBeLessThanOrEqual(600);
+  });
+});
+
+describe('DemoController intake', () => {
+  let controller: DemoController;
+  let service: { [key: string]: jest.Mock };
+
+  beforeEach(() => {
+    service = {
+      upsertIntake: jest.fn().mockResolvedValue({ id: 'intake-1' }),
+      findIntakeBySession: jest.fn().mockResolvedValue(null),
+      ask: jest.fn(),
+      upload: jest.fn(),
+    };
+    controller = new DemoController(service as unknown as DemoService);
+    jest.clearAllMocks();
+  });
+
+  const VALID_SESSION = 'valid-sess1';
+
+  it('valid payload resolves and calls upsertIntake with normalized data (title trimmed, preferredAt to ISO, empty email -> null)', async () => {
+    const result = await controller.intake({
+      sessionId: VALID_SESSION,
+      title: '  Mr  ',
+      fullName: '  John Doe  ',
+      email: '',
+      preferredAt: '2026-01-01T10:00:00Z',
+      reason: 'a checkup',
+    });
+
+    expect(result).toEqual({ saved: true });
+    expect(service.upsertIntake).toHaveBeenCalledWith({
+      sessionId: VALID_SESSION,
+      title: 'Mr',
+      fullName: 'John Doe',
+      phone: null,
+      email: null,
+      preferredAt: new Date('2026-01-01T10:00:00Z').toISOString(),
+      reason: 'a checkup',
+    });
+  });
+
+  it('rejects a missing fullName', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: undefined }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty fullName', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: '   ' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects a fullName longer than 100 characters', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: 'a'.repeat(101) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects a title not in the allowed enum (Sir)', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: 'John', title: 'Sir' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects a phone longer than 32 characters', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: 'John', phone: '1'.repeat(33) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed email address', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: 'John', email: 'nope' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects an over-length email (>120 chars)', async () => {
+    await expect(
+      controller.intake({
+        sessionId: VALID_SESSION,
+        fullName: 'John',
+        email: 'a'.repeat(130) + '@x.com',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid preferredAt date', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: 'John', preferredAt: 'not-a-date' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects a reason longer than 500 characters', async () => {
+    await expect(
+      controller.intake({ sessionId: VALID_SESSION, fullName: 'John', reason: 'x'.repeat(501) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid sessionId on POST intake', async () => {
+    await expect(
+      controller.intake({ sessionId: 'x!@#', fullName: 'John' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.upsertIntake).not.toHaveBeenCalled();
+  });
+
+  describe('GET intake', () => {
+    it('rejects an invalid sessionId', () => {
+      expect(() => controller.intakeGet('x!@#')).toThrow(BadRequestException);
+      expect(service.findIntakeBySession).not.toHaveBeenCalled();
+    });
+
+    it('delegates to findIntakeBySession and returns the intake row for a valid sessionId', async () => {
+      const row = {
+        sessionId: VALID_SESSION,
+        title: null,
+        fullName: 'John Doe',
+        phone: null,
+        email: null,
+        preferredAt: null,
+        reason: null,
+        createdAt: new Date(),
+      };
+      service.findIntakeBySession.mockResolvedValue(row);
+
+      const result = await controller.intakeGet(VALID_SESSION);
+      expect(service.findIntakeBySession).toHaveBeenCalledWith(VALID_SESSION);
+      expect(result).toBe(row);
+    });
   });
 });
