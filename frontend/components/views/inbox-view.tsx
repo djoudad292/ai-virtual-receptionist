@@ -25,6 +25,23 @@ interface Source {
   documentTitle?: string | null
 }
 
+interface AiStep {
+  node: 'rag' | 'agent' | 'tools' | 'parse'
+  label: string
+  detail?: Record<string, unknown>
+}
+
+interface AiMetadata {
+  sources?: Source[]
+  intent?: string
+  confidence?: number
+  department?: string | null
+  source?: 'ai' | 'escalate'
+  lead?: { name?: string | null; email?: string | null; phone?: string | null } | null
+  appointment?: { date?: string | null; time?: string | null; title?: string | null } | null
+  steps?: AiStep[]
+}
+
 interface Message {
   id: string
   content: string
@@ -32,7 +49,7 @@ interface Message {
   senderId?: string
   conversationId?: string
   createdAt: string
-  metadata?: { sources?: Source[] }
+  metadata?: AiMetadata
 }
 
 function SourcesList({ sources }: { sources: Source[] }) {
@@ -59,6 +76,192 @@ function SourcesList({ sources }: { sources: Source[] }) {
         </ul>
       )}
     </div>
+  )
+}
+
+function AiOutputPanel({ metadata }: { metadata: AiMetadata }) {
+  // Older rows stored confidence as a numeric string; normalize before formatting.
+  const conf = metadata.confidence == null ? NaN : Number(metadata.confidence)
+  const hasPanelData = Boolean(
+    metadata.intent ||
+    metadata.source ||
+    metadata.steps?.length ||
+    metadata.confidence !== undefined ||
+    metadata.department ||
+    metadata.lead ||
+    metadata.appointment
+  )
+  if (!hasPanelData) return null
+
+  const summaryParts = ['AI output']
+  if (metadata.appointment) summaryParts.push('appointment')
+  if (Number.isFinite(conf)) summaryParts.push(conf.toFixed(2))
+  if (metadata.sources?.length) summaryParts.push(`${metadata.sources.length} sources`)
+
+  const truncateString = (str: string, max = 500) => str.length > max ? str.slice(0, max) + '…' : str
+  const stringifyDetail = (detail?: Record<string, unknown>) => {
+    if (!detail) return ''
+    return JSON.stringify(detail, (_, v) =>
+      typeof v === 'string' ? truncateString(v) : v, 2)
+  }
+
+  const nodeChipStyles: Record<string, string> = {
+    rag: 'bg-violet/10 text-violet border-violet/30',
+    agent: 'bg-primary/10 text-primary border-primary/30',
+    tools: 'bg-orange/10 text-orange border-orange/30',
+    parse: 'bg-success/10 text-success border-success/30',
+  }
+
+  return (
+    <details className="mt-2 border-t border-border/50 pt-2" open={false}>
+      <summary className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground hover:text-foreground cursor-pointer select-none">
+        <span className="flex items-center gap-1">
+          <span className="text-[10px]">▸</span>
+          {summaryParts.join(' · ')}
+        </span>
+      </summary>
+      <div className="mt-2 space-y-3 text-[11px]">
+        {(metadata.source || metadata.confidence !== undefined || metadata.intent || metadata.department) && (
+          <div className="space-y-1.5 text-muted-foreground/90">
+            <p className="font-medium text-foreground">Result</p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              {metadata.source && (
+                <>
+                  <dt className="text-muted-foreground">Source</dt>
+                  <dd className="font-mono">
+                    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${
+                      metadata.source === 'ai'
+                        ? 'bg-primary/10 text-primary border-primary/30'
+                        : 'bg-warning/10 text-warning border-warning/30'
+                    }`}>
+                      {metadata.source}
+                    </span>
+                  </dd>
+                </>
+              )}
+              {Number.isFinite(conf) && (
+                <>
+                  <dt className="text-muted-foreground">Confidence</dt>
+                  <dd className="font-mono">
+                    {(conf * 100).toFixed(1)}%
+                  </dd>
+                </>
+              )}
+              {metadata.intent && (
+                <>
+                  <dt className="text-muted-foreground">Intent</dt>
+                  <dd className="font-mono">{metadata.intent}</dd>
+                </>
+              )}
+              {metadata.department && (
+                <>
+                  <dt className="text-muted-foreground">Department</dt>
+                  <dd className="font-mono">{metadata.department}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
+
+        {metadata.lead && (metadata.lead.name || metadata.lead.email || metadata.lead.phone) && (
+          <div className="space-y-1.5 text-muted-foreground/90">
+            <p className="font-medium text-foreground">Captured lead</p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              {metadata.lead.name && (
+                <>
+                  <dt className="text-muted-foreground">Name</dt>
+                  <dd>{metadata.lead.name}</dd>
+                </>
+              )}
+              {metadata.lead.email && (
+                <>
+                  <dt className="text-muted-foreground">Email</dt>
+                  <dd>{metadata.lead.email}</dd>
+                </>
+              )}
+              {metadata.lead.phone && (
+                <>
+                  <dt className="text-muted-foreground">Phone</dt>
+                  <dd>{metadata.lead.phone}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
+
+        {metadata.appointment && (metadata.appointment.date || metadata.appointment.time || metadata.appointment.title) && (
+          <div className="space-y-1.5 text-muted-foreground/90">
+            <p className="font-medium text-foreground">Captured appointment</p>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              {metadata.appointment.title && (
+                <>
+                  <dt className="text-muted-foreground">Title</dt>
+                  <dd>{metadata.appointment.title}</dd>
+                </>
+              )}
+              {metadata.appointment.date && (
+                <>
+                  <dt className="text-muted-foreground">Date</dt>
+                  <dd>{metadata.appointment.date}</dd>
+                </>
+              )}
+              {metadata.appointment.time && (
+                <>
+                  <dt className="text-muted-foreground">Time</dt>
+                  <dd>{metadata.appointment.time}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
+
+        {metadata.sources?.length && (
+          <div className="space-y-1.5 text-muted-foreground/90">
+            <p className="font-medium text-foreground">Sources</p>
+            <ul className="space-y-1">
+              {metadata.sources.map((s, i) => (
+                <details key={i} className="group">
+                  <summary className="flex items-center gap-2 cursor-pointer">
+                    <span className="font-mono">{s.documentTitle || `Chunk ${i + 1}`}</span>
+                    <span className="text-[10px] text-muted-foreground/60">
+                      {(s.similarity * 100).toFixed(0)}%
+                    </span>
+                  </summary>
+                  <p className="mt-1 ml-4 text-[10px] text-muted-foreground/70 font-mono whitespace-pre-wrap">
+                    {s.chunkText}
+                  </p>
+                </details>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {metadata.steps?.length && (
+          <div className="space-y-1.5 text-muted-foreground/90">
+            <p className="font-medium text-foreground">Trace</p>
+            <ol className="space-y-2">
+              {metadata.steps.map((step, i) => (
+                <li key={i} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${
+                      nodeChipStyles[step.node] || 'bg-muted text-muted-foreground border-border'
+                    }`}>
+                      {step.node}
+                    </span>
+                    <span className="font-medium text-foreground">{step.label}</span>
+                  </div>
+                  {step.detail && (
+                    <pre className="ml-6 text-[10px] text-muted-foreground/70 font-mono overflow-x-auto whitespace-pre-wrap">
+                      {stringifyDetail(step.detail)}
+                    </pre>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+    </details>
   )
 }
 
@@ -394,9 +597,25 @@ export default function InboxView() {
                         </p>
                       )}
                       <p>{msg.content}</p>
-                      {msg.senderType === 'ai' && msg.metadata?.sources?.length ? (
-                        <SourcesList sources={msg.metadata.sources} />
-                      ) : null}
+                      {msg.senderType === 'ai' && msg.metadata && (
+                        <>
+                          {(() => {
+                            const m = msg.metadata!
+                            const hasPanelData = Boolean(
+                              m.intent || m.source || m.steps?.length ||
+                              m.confidence !== undefined || m.department ||
+                              m.lead || m.appointment
+                            )
+                            if (hasPanelData) {
+                              return <AiOutputPanel metadata={m} />
+                            }
+                            if (m.sources?.length) {
+                              return <SourcesList sources={m.sources} />
+                            }
+                            return null
+                          })()}
+                        </>
+                      )}
                       <p className="mt-1 text-xs opacity-50">
                         {new Date(msg.createdAt).toLocaleTimeString()}
                       </p>
