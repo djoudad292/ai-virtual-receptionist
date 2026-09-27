@@ -11,6 +11,7 @@ import {
   OpenAIMessage,
   toGeminiContents,
 } from './agent-tools';
+import { extractJson } from './json-envelope';
 import type { GraphTraceStep } from './langgraph/trace.types';
 
 const EMBEDDING_DIM = 1536;
@@ -903,17 +904,7 @@ Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACT
   }
 
   private extractJson(text: string | null): any | null {
-    if (!text) return null;
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const candidate = fenced ? fenced[1] : text;
-    const start = candidate.indexOf('{');
-    const end = candidate.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) return null;
-    try {
-      return JSON.parse(candidate.slice(start, end + 1));
-    } catch {
-      return null;
-    }
+    return extractJson(text);
   }
 
   private sanitizeIntent(value: any): ReceptionistResult['intent'] {

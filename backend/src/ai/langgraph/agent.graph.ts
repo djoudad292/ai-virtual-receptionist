@@ -2,6 +2,7 @@ import { StateGraph, Annotation, START, END } from '@langchain/langgraph';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReceptionistTools } from './agent.tools';
+import { extractJson } from '../json-envelope';
 import { GraphTraceStep, MAX_TRACE_STEPS, MAX_TRACE_STRING } from './trace.types';
 import { StoreService } from '../../common/store.service';
 import { MailService } from '../../common/mail.service';
@@ -380,20 +381,6 @@ After using tools, ALWAYS respond with a JSON object in this exact shape:
 - Set "lead" fields to null when unknown.
 - Set "appointment" to null unless the visitor wants to schedule something.
 - "date" must be an actual date from the conversation (YYYY-MM-DD), "time" in 24h HH:MM format.`;
-}
-
-function extractJson(text: string | null): any | null {
-  if (!text) return null;
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : text;
-  const start = candidate.indexOf('{');
-  const end = candidate.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) return null;
-  try {
-    return JSON.parse(candidate.slice(start, end + 1));
-  } catch {
-    return null;
-  }
 }
 
 function sanitizeIntent(value: any): LangGraphResult['intent'] {
