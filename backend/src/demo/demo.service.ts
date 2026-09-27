@@ -249,6 +249,7 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
       department: result.department,
       lead: result.lead,
       appointment: result.appointment,
+      actions: result.actions ?? [],
       sources: (result.sources || []).map((s: Source) => ({
         chunkText: (s.chunkText || '').slice(0, 400),
         similarity: s.similarity,
@@ -311,6 +312,34 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
       ? items.filter((a: { conversationId?: string | null }) => a.conversationId === sessionId)
       : items;
     return { appointments };
+  }
+
+  async listLeads(sessionId?: string) {
+    if (sessionId) {
+      const conv = await this.store.findConversationById(sessionId);
+      if (conv && conv.companyId !== DEMO_COMPANY_ID) {
+        throw new BadRequestException('Invalid session');
+      }
+      if (!conv) {
+        // No conversation yet (page just loaded) — nothing can be captured.
+        return { leads: [] };
+      }
+    }
+
+    const { items } = await this.store.findLeadsByCompany(DEMO_COMPANY_ID, 1, 20);
+    const leads = sessionId
+      ? items.filter((l: { conversationId?: string | null }) => l.conversationId === sessionId)
+      : items;
+    return {
+      leads: leads.map((l) => ({
+        id: l.id,
+        name: l.name,
+        email: l.email,
+        phone: l.phone,
+        status: l.status,
+        createdAt: l.createdAt,
+      })),
+    };
   }
 
   async upsertIntake(data: {

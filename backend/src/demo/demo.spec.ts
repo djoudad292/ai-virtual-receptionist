@@ -18,6 +18,7 @@ describe('DemoController validation', () => {
       upload: jest.fn().mockResolvedValue({ id: 'd1', title: 'test', expiresAt: new Date() }),
       listDocuments: jest.fn().mockResolvedValue({ documents: [] }),
       listAppointments: jest.fn().mockResolvedValue({ appointments: [] }),
+      listLeads: jest.fn().mockResolvedValue({ leads: [] }),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -60,6 +61,16 @@ describe('DemoController validation', () => {
     await controller.ask(VALID_SESSION, '  What are your hours?  ');
     expect(service.ask).toHaveBeenCalledWith(VALID_SESSION, 'What are your hours?');
   });
+
+  it('rejects a malformed sessionId for GET leads', () => {
+    expect(() => controller.leads('x!@#')).toThrow(BadRequestException);
+    expect(service.listLeads).not.toHaveBeenCalled();
+  });
+
+  it('delegates to listLeads for GET leads when sessionId omitted', async () => {
+    await controller.leads(undefined);
+    expect(service.listLeads).toHaveBeenCalledWith(undefined);
+  });
 });
 
 describe('DemoService', () => {
@@ -97,6 +108,9 @@ describe('DemoService', () => {
       findMessagesByConversation: jest.fn().mockResolvedValue([]),
       updateDocument: jest.fn().mockResolvedValue(null),
       findAppointmentsByCompany: jest
+        .fn()
+        .mockResolvedValue({ items: [], total: 0, page: 1, perPage: 20 }),
+      findLeadsByCompany: jest
         .fn()
         .mockResolvedValue({ items: [], total: 0, page: 1, perPage: 20 }),
       findTemporaryDocuments: jest.fn().mockResolvedValue([]),
@@ -394,6 +408,62 @@ describe('DemoService', () => {
 
     const result = await demoService.listAppointments();
     expect(result.appointments).toHaveLength(2);
+  });
+
+  it('listLeads returns { leads: [] } for an unknown session (no conversation yet)', async () => {
+    store.findConversationById.mockResolvedValue(null);
+
+    const result = await demoService.listLeads(VALID_SESSION);
+
+    expect(result).toEqual({ leads: [] });
+    expect(store.findLeadsByCompany).not.toHaveBeenCalled();
+  });
+
+  it('listLeads validates that the sessionId belongs to the demo company', async () => {
+    store.findConversationById.mockResolvedValue({ id: VALID_SESSION, companyId: 'other-company' });
+
+    await expect(demoService.listLeads(VALID_SESSION)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('listLeads filters by conversationId when sessionId is provided', async () => {
+    store.findConversationById.mockResolvedValue({ id: VALID_SESSION, companyId: 'demo-try' });
+    store.findLeadsByCompany.mockResolvedValue({
+      items: [
+        { id: 'lead-1', conversationId: VALID_SESSION, name: 'Alice', email: 'a@b.com', phone: null, status: 'new', createdAt: new Date() },
+        { id: 'lead-2', conversationId: 'other-session', name: 'Bob', email: null, phone: '555', status: 'new', createdAt: new Date() },
+      ],
+      total: 2,
+      page: 1,
+      perPage: 20,
+    });
+
+    const result = await demoService.listLeads(VALID_SESSION);
+
+    expect(result.leads).toHaveLength(1);
+    expect(result.leads[0].id).toBe('lead-1');
+    expect(result.leads[0].name).toBe('Alice');
+    expect(result.leads[0].email).toBe('a@b.com');
+    expect(result.leads[0].status).toBe('new');
+  });
+
+  it('listLeads maps rows to a public shape (no companyId leaked) and returns all when sessionId omitted', async () => {
+    store.findLeadsByCompany.mockResolvedValue({
+      items: [
+        { id: 'lead-1', conversationId: 'session-a', companyId: 'demo-try', name: 'Alice', email: 'a@b.com', phone: null, status: 'new', createdAt: new Date() },
+        { id: 'lead-2', conversationId: 'session-b', companyId: 'demo-try', name: 'Bob', email: null, phone: '555', status: 'new', createdAt: new Date() },
+      ],
+      total: 2,
+      page: 1,
+      perPage: 20,
+    });
+
+    const result = await demoService.listLeads();
+
+    expect(result.leads).toHaveLength(2);
+    expect(result.leads[0]).not.toHaveProperty('companyId');
+    expect(result.leads[1]).toEqual(
+      expect.objectContaining({ id: 'lead-2', name: 'Bob', phone: '555', status: 'new' }),
+    );
   });
 
   it('listDocuments maps temporary documents to the expected shape', async () => {

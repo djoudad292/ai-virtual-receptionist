@@ -176,4 +176,12 @@ export class DemoController {
     }
     return this.demoService.listAppointments(sessionId || undefined);
   }
+
+  @Get('leads')
+  leads(@Query('sessionId') sessionId?: string) {
+    if (sessionId && !SESSION_ID_RE.test(sessionId)) {
+      throw new BadRequestException('Invalid sessionId');
+    }
+    return this.demoService.listLeads(sessionId || undefined);
+  }
 }

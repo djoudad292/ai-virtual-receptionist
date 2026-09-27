@@ -27,6 +27,19 @@ export interface Source {
   documentTitle?: string | null;
 }
 
+export interface DemoAction {
+  type: 'lead' | 'appointment' | 'email';
+  ok: boolean;
+  id?: string | null;
+  detail?: string | null;
+}
+
+export interface ReceptionistExecuted {
+  lead?: { name?: string | null; email?: string | null; phone?: string | null } | null;
+  appointment?: { date?: string | null; time?: string | null; title?: string | null } | null;
+  email?: { to: string; sent: boolean } | null;
+}
+
 export interface ReceptionistResult {
   response: string;
   source: 'ai' | 'escalate';
@@ -37,6 +50,7 @@ export interface ReceptionistResult {
   appointment?: { date?: string | null; time?: string | null; title?: string | null } | null;
   sources: Source[];
   steps?: GraphTraceStep[];
+  actions?: DemoAction[];
 }
 
 export interface AskResult {
@@ -495,7 +509,7 @@ export class AIService {
     call: ToolCall,
     companyId: string,
     conversationId?: string,
-    executed: { lead?: any; appointment?: any } = {},
+    executed: ReceptionistExecuted = {},
   ): Promise<string> {
     const args = call.args || {};
     try {
@@ -577,6 +591,7 @@ export class AIService {
             return JSON.stringify({ ok: false, error: 'to and subject are required' });
           }
           const sent = await this.mail.send({ to, subject, text: body || '' });
+          executed.email = { to, sent };
           return JSON.stringify({ ok: sent, sent });
         }
         default:
@@ -628,7 +643,11 @@ export class AIService {
       };
 
       if (conversationId) {
-        await this.persistSideEffects(companyId, conversationId, result);
+        const persisted = await this.persistSideEffects(companyId, conversationId, result);
+        const actions = this.buildActions(persisted, {}, result);
+        if (actions.length > 0) {
+          result.actions = actions;
+        }
       }
 
       return result;
@@ -668,7 +687,7 @@ export class AIService {
     // Tool-calling loop: let the LLM invoke real functions (capture_lead,
     // book_appointment, send_confirmation_email). Falls back to plain JSON
     // envelope generation if no tools are requested.
-    const executed: { lead?: any; appointment?: any } = {};
+    const executed: ReceptionistExecuted = {};
     let raw: string | null = null;
     for (let round = 0; round < 3; round++) {
       const turn = await this.chatWithTools(agentMessages, RECEPTIONIST_TOOLS);
@@ -753,7 +772,11 @@ export class AIService {
     };
 
     if (conversationId) {
-      await this.persistSideEffects(companyId, conversationId, result);
+      const persisted = await this.persistSideEffects(companyId, conversationId, result);
+      const actions = this.buildActions(persisted, executed, result);
+      if (actions.length > 0) {
+        result.actions = actions;
+      }
     }
 
     return result;
@@ -801,9 +824,16 @@ If the context does not contain the answer, draft a short reply that asks for cl
   }
 
   // Persist side effects (leads, appointments, routing)
-  private async persistSideEffects(companyId: string, conversationId: string, result: ReceptionistResult) {
+  private async persistSideEffects(
+    companyId: string,
+    conversationId: string,
+    result: ReceptionistResult,
+  ): Promise<{ leadId: string | null; appointmentId: string | null }> {
+    let leadId: string | null = null;
+    let appointmentId: string | null = null;
+
     const conversation = await this.store.findConversationById(conversationId);
-    if (!conversation) return;
+    if (!conversation) return { leadId, appointmentId };
 
     // Department routing
     if (result.department && conversation.department !== result.department) {
@@ -815,12 +845,13 @@ If the context does not contain the answer, draft a short reply that asks for cl
     if (leadInfo && (leadInfo.email || leadInfo.phone || leadInfo.name)) {
       let lead = await this.store.findLeadByConversation(conversationId);
       if (lead) {
-        await this.store.updateLead(lead.id, {
+        lead = await this.store.updateLead(lead.id, {
           name: leadInfo.name || lead.name || undefined,
           email: leadInfo.email || lead.email || undefined,
           phone: leadInfo.phone || lead.phone || undefined,
           department: result.department || lead.department || undefined,
         });
+        leadId = lead?.id ?? null;
       } else {
         lead = await this.store.createLead({
           id: crypto.randomUUID(),
@@ -834,7 +865,10 @@ If the context does not contain the answer, draft a short reply that asks for cl
           status: 'new',
           department: result.department || null,
         });
-        await this.store.updateConversation(conversationId, { leadId: lead.id });
+        leadId = lead?.id ?? null;
+        if (lead?.id) {
+          await this.store.updateConversation(conversationId, { leadId: lead.id });
+        }
       }
     }
 
@@ -847,7 +881,7 @@ If the context does not contain the answer, draft a short reply that asks for cl
         if (startTime) {
           const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
           const lead = await this.store.findLeadByConversation(conversationId);
-          await this.store.createAppointment({
+          const createdAppt = await this.store.createAppointment({
             id: crypto.randomUUID(),
             companyId,
             conversationId,
@@ -860,12 +894,56 @@ If the context does not contain the answer, draft a short reply that asks for cl
             endTime: endTime.toISOString(),
             status: 'requested',
           });
+          appointmentId = createdAppt?.id ?? null;
           await this.store.updateConversation(conversationId, {
             metadata: { ...metadata, appointmentBooked: true },
           });
         }
       }
     }
+
+    return { leadId, appointmentId };
+  }
+
+  // Build the public `actions` array from persisted DB ids and executed tool side-effects.
+  private buildActions(
+    persisted: { leadId: string | null; appointmentId: string | null },
+    executed: ReceptionistExecuted,
+    result: ReceptionistResult,
+  ): DemoAction[] {
+    const actions: DemoAction[] = [];
+
+    const leadInfo = executed.lead ?? result.lead;
+    if (persisted.leadId && leadInfo) {
+      const parts = [leadInfo.name, leadInfo.email || leadInfo.phone].filter(Boolean);
+      actions.push({
+        type: 'lead',
+        ok: true,
+        id: persisted.leadId,
+        detail: parts.join(' · '),
+      });
+    }
+
+    const apptInfo = executed.appointment ?? result.appointment;
+    if (persisted.appointmentId && apptInfo) {
+      const parts = [apptInfo.date, apptInfo.time, apptInfo.title].filter(Boolean);
+      actions.push({
+        type: 'appointment',
+        ok: true,
+        id: persisted.appointmentId,
+        detail: parts.join(' · '),
+      });
+    }
+
+    if (executed.email) {
+      actions.push({
+        type: 'email',
+        ok: executed.email.sent,
+        detail: executed.email.to,
+      });
+    }
+
+    return actions;
   }
 
   // Prompt + parsing helpers

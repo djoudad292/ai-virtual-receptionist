@@ -327,3 +327,78 @@ describe('AIService.shouldFallbackToGemini', () => {
     expect(fn('something else happened')).toBe(false);
   });
 });
+
+describe('AIService.buildActions', () => {
+  let aiService: AIService;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AIService,
+        { provide: StoreService, useValue: {} },
+        { provide: MailService, useValue: {} },
+      ],
+    }).compile();
+    aiService = moduleRef.get(AIService);
+  });
+
+  it('returns lead, appointment, email in order when all side-effects are present', () => {
+    const persisted = { leadId: 'lead-1', appointmentId: 'appt-1' };
+    const executed = {
+      lead: { name: 'Alice', email: 'alice@b.com', phone: '123' },
+      appointment: { date: '2026-01-02', time: '14:00', title: 'Meeting' },
+      email: { to: 'alice@b.com', sent: true },
+    };
+    const result = {
+      lead: { name: 'Alice', email: 'alice@b.com', phone: '123' },
+      appointment: { date: '2026-01-02', time: '14:00', title: 'Meeting' },
+    } as any;
+
+    const actions = (aiService as any).buildActions(persisted, executed, result);
+
+    expect(actions).toHaveLength(3);
+    expect(actions[0]).toEqual({
+      type: 'lead',
+      ok: true,
+      id: 'lead-1',
+      detail: 'Alice · alice@b.com',
+    });
+    expect(actions[1]).toEqual({
+      type: 'appointment',
+      ok: true,
+      id: 'appt-1',
+      detail: '2026-01-02 · 14:00 · Meeting',
+    });
+    expect(actions[2]).toEqual({
+      type: 'email',
+      ok: true,
+      detail: 'alice@b.com',
+    });
+  });
+
+  it('returns an empty array (and result.actions stays omitted) when nothing happened', () => {
+    const persisted = { leadId: null, appointmentId: null };
+    const executed = {};
+    const result = { lead: null, appointment: null } as any;
+
+    const actions = (aiService as any).buildActions(persisted, executed, result);
+
+    expect(actions).toEqual([]);
+  });
+
+  it('marks email ok:false when SMTP is disabled (sent is false)', () => {
+    const persisted = { leadId: null, appointmentId: null };
+    const executed = { email: { to: 'alice@b.com', sent: false } };
+    const result = {} as any;
+
+    const actions = (aiService as any).buildActions(persisted, executed, result);
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toEqual({
+      type: 'email',
+      ok: false,
+      detail: 'alice@b.com',
+    });
+    expect(actions[0].ok).toBe(false);
+  });
+});
