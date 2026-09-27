@@ -272,8 +272,12 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
   async listAppointments(sessionId?: string) {
     if (sessionId) {
       const conv = await this.store.findConversationById(sessionId);
-      if (!conv || conv.companyId !== DEMO_COMPANY_ID) {
+      if (conv && conv.companyId !== DEMO_COMPANY_ID) {
         throw new BadRequestException('Invalid session');
+      }
+      if (!conv) {
+        // No conversation yet (page just loaded) — nothing can be booked.
+        return { appointments: [] };
       }
     }
 

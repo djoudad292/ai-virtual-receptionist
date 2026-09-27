@@ -354,6 +354,15 @@ describe('DemoService', () => {
     await expect(demoService.listAppointments(VALID_SESSION)).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('listAppointments returns an empty list for a session with no conversation yet', async () => {
+    store.findConversationById.mockResolvedValue(null);
+
+    const result = await demoService.listAppointments(VALID_SESSION);
+
+    expect(result).toEqual({ appointments: [] });
+    expect(store.findAppointmentsByCompany).not.toHaveBeenCalled();
+  });
+
   it('listAppointments filters by conversationId when sessionId is provided', async () => {
     store.findConversationById.mockResolvedValue({ id: VALID_SESSION, companyId: 'demo-try' });
     store.findAppointmentsByCompany.mockResolvedValue({
