@@ -4,6 +4,7 @@ import { Check } from 'lucide-react'
 import { DemoChat } from '@/components/demo-chat'
 import { DemoUpload } from '@/components/demo-upload'
 import { SiteHeader } from '@/components/site-header'
+import { WakeSplash } from '@/components/wake-splash'
 
 export const metadata: Metadata = {
   title: 'Try the AI Receptionist — live demo',
@@ -43,6 +44,7 @@ const WORTH_TRYING = [
 export default function TryPage() {
   return (
     <div id="main" tabIndex={-1} className="min-h-screen bg-bg text-fg outline-none">
+      <WakeSplash />
       <SiteHeader />
 
       <main>
