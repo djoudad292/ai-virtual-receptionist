@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger, BadRequestException } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
+import { StoredDemoIntake } from '../common/store.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { AIService } from '../ai/ai.service';
 import { Source } from '../ai/ai.service';
@@ -7,6 +8,27 @@ import { Source } from '../ai/ai.service';
 export const DEMO_COMPANY_ID = 'demo-try';
 export const UPLOAD_TTL_MS = 12 * 60 * 60 * 1000;
 const PURGE_INTERVAL_MS = 10 * 60 * 1000;
+const INTAKE_CONTEXT_MAX_LEN = 600;
+
+export function buildIntakeContext(row: StoredDemoIntake | null): string | null {
+  if (!row) return null;
+
+  const parts: string[] = [];
+  if (row.title) parts.push(`title ${row.title}`);
+  parts.push(`name ${row.fullName}`);
+  if (row.phone) parts.push(`phone ${row.phone}`);
+  if (row.email) parts.push(`email ${row.email}`);
+  if (row.preferredAt) parts.push(`preferred appointment ${row.preferredAt}`);
+  if (row.reason) parts.push(`reason "${row.reason}"`);
+
+  if (parts.length === 0) return null;
+
+  let context = `Visitor details: ${parts.join(', ')}. Use these naturally when relevant.`;
+  if (context.length > INTAKE_CONTEXT_MAX_LEN) {
+    context = context.slice(0, INTAKE_CONTEXT_MAX_LEN);
+  }
+  return context;
+}
 
 const DEMO_SETTINGS = {
   name: 'Northside Dental',
@@ -200,9 +222,12 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
 
     const history = await this.store.findMessagesByConversation(sessionId);
 
+    const intakeContext = buildIntakeContext(await this.store.findDemoIntakeBySession(sessionId));
+    const prompt = intakeContext ? `${intakeContext}\n\n${question}` : question;
+
     const result = await this.aiService.generateResponse(
       DEMO_COMPANY_ID,
-      question,
+      prompt,
       history,
       sessionId,
       { mode: 'receptionist' },
@@ -286,5 +311,29 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
       ? items.filter((a: { conversationId?: string | null }) => a.conversationId === sessionId)
       : items;
     return { appointments };
+  }
+
+  async upsertIntake(data: {
+    sessionId: string;
+    title: string;
+    fullName: string;
+    phone: string | null;
+    email: string | null;
+    preferredAt: string | null;
+    reason: string | null;
+  }): Promise<StoredDemoIntake> {
+    return this.store.upsertDemoIntake({
+      sessionId: data.sessionId,
+      title: data.title || null,
+      fullName: data.fullName,
+      phone: data.phone,
+      email: data.email,
+      preferredAt: data.preferredAt,
+      reason: data.reason,
+    });
+  }
+
+  async findIntakeBySession(sessionId: string): Promise<StoredDemoIntake | null> {
+    return this.store.findDemoIntakeBySession(sessionId);
   }
 }

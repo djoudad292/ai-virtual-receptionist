@@ -84,6 +84,7 @@ describe('DemoService', () => {
           Promise.resolve({ ...data, id: 'dept-1', createdAt: new Date() }),
         ),
       purgeExpiredDocuments: jest.fn().mockResolvedValue(0),
+      findDemoIntakeBySession: jest.fn().mockResolvedValue(null),
       findConversationById: jest.fn().mockResolvedValue(null),
       createConversation: jest
         .fn()

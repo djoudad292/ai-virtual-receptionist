@@ -128,6 +128,18 @@ export type StoredDepartment = {
   createdAt: Date;
 };
 
+export type StoredDemoIntake = {
+  sessionId: string;
+  title: string | null;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  preferredAt: string | null;
+  reason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 @Injectable()
 export class StoreService {
   constructor(private db: DatabaseService) {}
@@ -781,7 +793,44 @@ export class StoreService {
     return row?.count ?? 0;
   }
 
-  // Departments
+  // Demo intakes
+  async upsertDemoIntake(data: {
+    sessionId: string;
+    title: string | null;
+    fullName: string;
+    phone: string | null;
+    email: string | null;
+    preferredAt: string | null;
+    reason: string | null;
+  }): Promise<StoredDemoIntake> {
+    const rows = await this.db.query<StoredDemoIntake>(
+      `INSERT INTO demo_intakes (session_id, title, full_name, phone, email, preferred_at, reason, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
+       ON CONFLICT (session_id) DO UPDATE SET
+         title = EXCLUDED.title,
+         full_name = EXCLUDED.full_name,
+         phone = EXCLUDED.phone,
+         email = EXCLUDED.email,
+         preferred_at = EXCLUDED.preferred_at,
+         reason = EXCLUDED.reason,
+         updated_at = now()
+       RETURNING session_id AS "sessionId", title, full_name AS "fullName", phone, email,
+                 preferred_at AS "preferredAt", reason,
+                 created_at AS "createdAt", updated_at AS "updatedAt"`,
+      [data.sessionId, data.title, data.fullName, data.phone, data.email, data.preferredAt, data.reason],
+    );
+    return rows[0];
+  }
+
+  async findDemoIntakeBySession(sessionId: string): Promise<StoredDemoIntake | null> {
+    return this.db.queryOne<StoredDemoIntake>(
+      `SELECT session_id AS "sessionId", title, full_name AS "fullName", phone, email,
+              preferred_at AS "preferredAt", reason,
+              created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM demo_intakes WHERE session_id = $1`,
+      [sessionId],
+    );
+  }
   async listDepartments(companyId: string): Promise<StoredDepartment[]> {
     return this.db.query<StoredDepartment>(
       `SELECT id, company_id AS "companyId", name, description, keywords, email, created_at AS "createdAt"

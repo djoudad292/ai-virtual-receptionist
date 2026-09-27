@@ -131,6 +131,17 @@ const SCHEMA_STATEMENTS: string[] = [
     created_at TIMESTAMPTZ DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token_hash)`,
+  `CREATE TABLE IF NOT EXISTS demo_intakes (
+    session_id TEXT PRIMARY KEY,
+    title TEXT,
+    full_name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    preferred_at TIMESTAMPTZ,
+    reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
 ];
 
 const HNSW_INDEX_STATEMENT = `CREATE INDEX IF NOT EXISTS knowledge_chunks_embedding_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops)`;
