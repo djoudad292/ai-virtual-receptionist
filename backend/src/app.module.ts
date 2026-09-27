@@ -15,6 +15,7 @@ import { LeadsModule } from './leads/leads.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { WidgetModule } from './widget/widget.module';
+import { DemoModule } from './demo/demo.module';
 import { AnalyticsController } from './analytics/analytics.controller';
 import { HealthController } from './health/health.controller';
 
@@ -51,6 +52,7 @@ import { HealthController } from './health/health.controller';
     DepartmentsModule,
     WebSocketModule,
     WidgetModule,
+    DemoModule,
   ],
   controllers: [HealthController, AnalyticsController],
   providers: [

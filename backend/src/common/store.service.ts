@@ -72,6 +72,7 @@ export type StoredDocument = {
   summary?: string | null;
   published: boolean;
   error?: string | null;
+  expiresAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -410,9 +411,9 @@ export class StoreService {
   // Knowledge Base
   async createDocument(data: Omit<StoredDocument, 'createdAt' | 'updatedAt'>): Promise<StoredDocument> {
     const rows = await this.db.query<StoredDocument>(
-      `INSERT INTO knowledge_documents (id, company_id, title, content, chunks, filename, mime, size_bytes, file, page_count, status, summary, published, error, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9, $10, $11, $12, $13, $14, now(), now())
-       RETURNING id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"`,
+      `INSERT INTO knowledge_documents (id, company_id, title, content, chunks, filename, mime, size_bytes, file, page_count, status, summary, published, error, expires_at, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), now())
+               RETURNING id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, expires_at AS "expiresAt", created_at AS "createdAt", updated_at AS "updatedAt"`,
       [
         data.id,
         data.companyId,
@@ -428,6 +429,7 @@ export class StoreService {
         data.summary || null,
         data.published,
         data.error || null,
+        data.expiresAt || null,
       ],
     );
     return rows[0];
@@ -435,7 +437,7 @@ export class StoreService {
 
   async findDocumentById(id: string): Promise<StoredDocument | null> {
     return this.db.queryOne<StoredDocument>(
-      `SELECT id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", file, page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"
+      `SELECT id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", file, page_count AS "pageCount", status, summary, published, error, expires_at AS "expiresAt", created_at AS "createdAt", updated_at AS "updatedAt"
        FROM knowledge_documents WHERE id = $1`,
       [id],
     );
@@ -483,6 +485,7 @@ export class StoreService {
       summary: 'summary',
       published: 'published',
       error: 'error',
+      expiresAt: 'expires_at',
     };
     const dataAny = data as Record<string, any>;
     for (const [key, col] of Object.entries(fields)) {
@@ -493,7 +496,7 @@ export class StoreService {
     }
     return this.db.queryOne<StoredDocument>(
       `UPDATE knowledge_documents SET ${sets.join(', ')} WHERE id = $1
-       RETURNING id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, created_at AS "createdAt", updated_at AS "updatedAt"`,
+               RETURNING id, company_id AS "companyId", title, content, chunks, filename, mime, size_bytes AS "sizeBytes", page_count AS "pageCount", status, summary, published, error, expires_at AS "expiresAt", created_at AS "createdAt", updated_at AS "updatedAt"`,
       params,
     );
   }
@@ -508,6 +511,29 @@ export class StoreService {
 
   async deleteDocument(id: string): Promise<void> {
     await this.db.execute(`DELETE FROM knowledge_documents WHERE id = $1`, [id]);
+  }
+
+  async purgeExpiredDocuments(companyId: string): Promise<number> {
+    const rows = await this.db.query<{ id: string }>(
+      `DELETE FROM knowledge_documents WHERE company_id = $1 AND expires_at IS NOT NULL AND expires_at < now() RETURNING id`,
+      [companyId],
+    );
+    return rows.length;
+  }
+
+  async findTemporaryDocuments(companyId: string) {
+    return this.db.query<{
+      id: string;
+      title: string;
+      expiresAt: Date;
+      createdAt: Date;
+    }>(
+      `SELECT id, title, expires_at AS "expiresAt", created_at AS "createdAt"
+       FROM knowledge_documents
+       WHERE company_id = $1 AND expires_at IS NOT NULL AND expires_at > now()
+       ORDER BY created_at DESC LIMIT 20`,
+      [companyId],
+    );
   }
 
   async insertChunk(data: { id: string; documentId: string; companyId: string; chunkIndex: number; chunkText: string; embedding: number[] }): Promise<void> {

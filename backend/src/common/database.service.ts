@@ -71,6 +71,7 @@ const SCHEMA_STATEMENTS: string[] = [
   `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS summary TEXT`,
   `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS published BOOLEAN DEFAULT true`,
   `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS error TEXT`,
+  `ALTER TABLE knowledge_documents ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`,
   `CREATE TABLE IF NOT EXISTS knowledge_chunks (
     id TEXT PRIMARY KEY,
     document_id TEXT NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,

@@ -13,19 +13,13 @@ import {
   Req,
   Res,
   BadRequestException,
-  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import pdfParse from 'pdf-parse';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AIService } from '../ai/ai.service';
-
-const MAX_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_PDF_BYTES = 10 * 1024 * 1024;
-const TEXT_EXTS = ['txt', 'md', 'markdown'];
-const ALLOWED_EXTS = [...TEXT_EXTS, 'pdf'];
+import { validateUploadedFile, extractFileText } from '../common/upload-rules';
 
 @Controller('knowledge-base')
 @UseGuards(JwtAuthGuard)
@@ -34,8 +28,6 @@ export class KnowledgeBaseController {
     private kbService: KnowledgeBaseService,
     private aiService: AIService,
   ) {}
-
-  private readonly logger = new Logger(KnowledgeBaseController.name);
 
   @Post()
   createDocument(
@@ -49,45 +41,14 @@ export class KnowledgeBaseController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadDocument(@Req() req: any, @UploadedFile() file?: Express.Multer.File) {
-    if (!file || !file.buffer) {
-      throw new BadRequestException('No file uploaded');
-    }
-    const ext = file.originalname.split('.').pop()?.toLowerCase() || '';
-    if (!ALLOWED_EXTS.includes(ext)) {
-      throw new BadRequestException('Only .txt, .md and .pdf files are supported');
-    }
-    const isPdf = ext === 'pdf';
-    if (file.size > (isPdf ? MAX_PDF_BYTES : MAX_FILE_BYTES)) {
-      throw new BadRequestException(isPdf ? 'PDF must be under 10MB' : 'File must be under 2MB');
-    }
-    const title = file.originalname.replace(/\.(txt|md|markdown|pdf)$/i, '');
+    const { isPdf, title } = validateUploadedFile(file);
+    const { content, pageCount } = await extractFileText(file!, isPdf);
 
-    let content = '';
-    let pageCount = 0;
-    if (isPdf) {
-      try {
-        const parsed = await pdfParse(file.buffer);
-        content = (parsed.text || '').trim();
-        pageCount = parsed.numpages || 0;
-      } catch (err) {
-        this.logger.warn(`PDF extraction failed for ${file.originalname}: ${(err as Error).message}`);
-      }
-      if (!content) {
-        throw new BadRequestException(
-          'No readable text was extracted from the PDF. It may be scanned or image-only.',
-        );
-      }
-    } else {
-      content = file.buffer.toString('utf8').trim();
-      if (!content) {
-        throw new BadRequestException('File is empty');
-      }
-    }
     return this.kbService.createDocument(req.user.companyId, title, content, {
-      filename: file.originalname,
-      mime: file.mimetype || (isPdf ? 'application/pdf' : 'text/plain'),
-      sizeBytes: file.size,
-      data: file.buffer,
+      filename: file!.originalname,
+      mime: file!.mimetype || (isPdf ? 'application/pdf' : 'text/plain'),
+      sizeBytes: file!.size,
+      data: file!.buffer,
       pageCount,
     });
   }
