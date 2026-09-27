@@ -5,6 +5,7 @@ import { DemoChat } from '@/components/demo-chat'
 import { DemoUpload } from '@/components/demo-upload'
 import { SiteHeader } from '@/components/site-header'
 import { WakeSplash } from '@/components/wake-splash'
+import { DemoIntake } from '@/components/demo-intake'
 
 export const metadata: Metadata = {
   title: 'Try the AI Receptionist — live demo',
@@ -48,6 +49,10 @@ export default function TryPage() {
       <SiteHeader />
 
       <main>
+        <section className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
+          <DemoIntake />
+        </section>
+
         <section className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
           <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-12">
             <div className="min-w-0">

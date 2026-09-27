@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MessageSquare, Mic, MicOff, RotateCcw } from 'lucide-react'
+import { BookOpen, MessageSquare, Mic, MicOff, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { pickMaleVoice } from '@/lib/demo-voice'
-import { askDemo, getDemoAppointments, createDemoSessionId, type DemoAppointment } from '@/lib/demo-api'
+import { askDemo, getDemoAppointments, type DemoAppointment } from '@/lib/demo-api'
 
 /**
  * Public demo conversation. No account, no API call: the guest is answered by a
@@ -24,6 +24,8 @@ import {
   reply,
 } from '@/lib/demo-conversation'
 import type { Message, Reply, Step } from '@/lib/demo-conversation'
+import { getDemoSessionId } from '@/lib/demo-session'
+import { getDemoIntake, onIntakeSaved } from '@/lib/demo-intake'
 
 interface SpeechRecognitionInstance {
   lang: string
@@ -63,10 +65,11 @@ export function DemoChat({ className }: { className?: string }) {
 
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const sessionIdRef = useRef<string>(createDemoSessionId())
+  const sessionIdRef = useRef<string>(getDemoSessionId())
 
   const [appointments, setAppointments] = useState<DemoAppointment[]>([])
   const [docsNoteIndex, setDocsNoteIndex] = useState<number | null>(null)
+  const [hasIntake, setHasIntake] = useState(false)
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const speechRef = useRef<{ timers: number[]; spokenId?: string }>({ timers: [] })
@@ -99,6 +102,13 @@ export function DemoChat({ className }: { className?: string }) {
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [messages, pending, listening])
+
+  useEffect(() => {
+    getDemoIntake(getDemoSessionId()).then((d) => {
+      if (d) setHasIntake(true)
+    })
+    return onIntakeSaved(() => setHasIntake(true))
+  }, [])
 
   const clearSpeechTimers = () => {
     speechRef.current.timers.forEach((t) => window.clearInterval(t))
@@ -402,8 +412,6 @@ export function DemoChat({ className }: { className?: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const lastReception = [...messages].reverse().find((m) => m.role === 'reception')
-
   const statusText = speaking
     ? 'AI is speaking…'
     : pending
@@ -521,21 +529,6 @@ export function DemoChat({ className }: { className?: string }) {
         </div>
       )}
 
-      {lastReception?.replies && !pending && (
-        <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-          {lastReception.replies.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => send(r)}
-              className="border border-border px-2.5 py-1 text-xs text-fg-secondary transition-colors hover:border-border-strong hover:text-fg"
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      )}
-
       {talkActive && (
         <div className="border-t border-border px-4 py-3">
           <div className="flex items-center gap-3">
@@ -579,6 +572,15 @@ export function DemoChat({ className }: { className?: string }) {
               {voiceError}
             </p>
           )}
+        </div>
+      )}
+
+      {hasIntake && (
+        <div className="flex items-center gap-2 px-4 py-2">
+          <BookOpen className="h-3.5 w-3.5 shrink-0 text-success" />
+          <span className="text-[11px] text-fg-muted">
+            Your saved details are included — answers are retrieved from the practice documents (RAG)
+          </span>
         </div>
       )}
 
