@@ -11,6 +11,7 @@ import {
   OpenAIMessage,
   toGeminiContents,
 } from './agent-tools';
+import type { GraphTraceStep } from './langgraph/trace.types';
 
 const EMBEDDING_DIM = 1536;
 const DEFAULT_DEPARTMENTS = [
@@ -34,6 +35,7 @@ export interface ReceptionistResult {
   lead?: { name?: string | null; email?: string | null; phone?: string | null } | null;
   appointment?: { date?: string | null; time?: string | null; title?: string | null } | null;
   sources: Source[];
+  steps?: GraphTraceStep[];
 }
 
 export interface AskResult {
@@ -230,7 +232,7 @@ export class AIService {
       const threshold = process.env.OPENAI_API_KEY ? 0.2 : 0.08;
       const results = await this.store.searchChunksPublished(companyId, embedding, limit, threshold);
       const filtered = results.filter((r) => r.similarity >= threshold);
-      const bestSimilarity = filtered.length > 0 ? filtered[0].similarity : 0;
+      const bestSimilarity = filtered.length > 0 ? Number(filtered[0].similarity) : 0;
       const context = filtered
         .map((r) => (r.documentTitle ? `[${r.documentTitle}]\n${r.chunkText}` : r.chunkText))
         .join('\n\n')
@@ -616,6 +618,7 @@ export class AIService {
         lead: lgResult.lead,
         appointment: lgResult.appointment,
         sources: lgResult.sources,
+        steps: lgResult.steps,
       };
 
       if (conversationId) {

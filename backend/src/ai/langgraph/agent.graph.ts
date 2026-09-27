@@ -2,6 +2,7 @@ import { StateGraph, Annotation, START, END } from '@langchain/langgraph';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReceptionistTools } from './agent.tools';
+import { GraphTraceStep, MAX_TRACE_STEPS, MAX_TRACE_STRING } from './trace.types';
 import { StoreService } from '../../common/store.service';
 import { MailService } from '../../common/mail.service';
 import { AIService } from '../ai.service';
@@ -20,6 +21,55 @@ export interface LangGraphResult {
   lead: { name?: string | null; email?: string | null; phone?: string | null } | null;
   appointment: { date?: string | null; time?: string | null; title?: string | null } | null;
   sources: Source[];
+  steps: GraphTraceStep[];
+}
+
+function truncateTraceString(value: string, max: number = MAX_TRACE_STRING): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+function toTraceJson(value: unknown, seen: WeakSet<object> = new WeakSet()): any {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') return truncateTraceString(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'bigint' || typeof value === 'function' || typeof value === 'symbol') {
+    return truncateTraceString(String(value));
+  }
+  if (value instanceof Error) return truncateTraceString(`${value.name}: ${value.message}`);
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) return `[Buffer ${value.length} bytes]`;
+  if (seen.has(value as object)) return '[Circular]';
+  seen.add(value as object);
+  if (Array.isArray(value)) return value.map((item) => toTraceJson(item, seen));
+  if (typeof value === 'object') {
+    const out: Record<string, any> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = toTraceJson(item, seen);
+    }
+    return out;
+  }
+  try {
+    return truncateTraceString(JSON.stringify(value) ?? String(value));
+  } catch {
+    return truncateTraceString(String(value));
+  }
+}
+
+function previewText(content: unknown, max: number = 400): string {
+  if (typeof content === 'string') return truncateTraceString(content, max);
+  if (Array.isArray(content)) {
+    const first = content.find((part: any) => typeof part?.text === 'string');
+    return first ? truncateTraceString(String(first.text), max) : '';
+  }
+  return '';
+}
+
+function capTraceSteps(steps: GraphTraceStep[]): GraphTraceStep[] {
+  if (steps.length <= MAX_TRACE_STEPS) return steps;
+  const head = steps.slice(0, 10);
+  const tail = steps.slice(-(MAX_TRACE_STEPS - 11));
+  const dropped = steps.length - head.length - tail.length;
+  head.push({ node: 'parse', label: `${dropped} earlier steps trimmed` });
+  return [...head, ...tail];
 }
 
 const StateAnnotation = Annotation.Root({
@@ -52,6 +102,27 @@ export async function runReceptionistGraph(params: {
 
   const { context, results: ragResults } = await aiService.ragSearchPublic(companyId, userMessage);
 
+  const steps: GraphTraceStep[] = [];
+
+  const similarities = ragResults
+    .map((r) => Number(r.similarity))
+    .filter((n) => Number.isFinite(n));
+  const documentTitles: string[] = [];
+  for (const r of ragResults) {
+    const title = typeof r.documentTitle === 'string' && r.documentTitle.trim() ? r.documentTitle : null;
+    if (title && !documentTitles.includes(title)) documentTitles.push(title);
+    if (documentTitles.length >= 5) break;
+  }
+  steps.push({
+    node: 'rag',
+    label: ragResults.length > 0 ? `Retrieved ${ragResults.length} document chunks` : 'No document chunks matched',
+    detail: {
+      chunksFound: ragResults.length,
+      topSimilarity: similarities.length ? Math.round(Math.max(...similarities) * 100) / 100 : 0,
+      documentTitles,
+    },
+  });
+
   const executed: { lead?: any; appointment?: any } = {};
 
   const tools = createReceptionistTools(store, mail, aiService, companyId, conversationId, executed);
@@ -64,6 +135,15 @@ export async function runReceptionistGraph(params: {
 
   const agentNode = async (state: typeof StateAnnotation.State) => {
     const response = await llmWithTools.invoke(state.messages);
+    const toolCalls = (response as any)?.tool_calls || [];
+    steps.push({
+      node: 'agent',
+      label: toolCalls.length > 0 ? 'Model requested tools' : 'Model produced a reply',
+      detail: toTraceJson({
+        toolCalls: toolCalls.map((tc: any) => ({ name: tc?.name, args: tc?.args })),
+        textPreview: previewText((response as any)?.content),
+      }),
+    });
     return { messages: [response] };
   };
 
@@ -75,12 +155,22 @@ export async function runReceptionistGraph(params: {
       const toolFn = toolsByName.get(tc.name);
       if (toolFn) {
         const output = await (toolFn as any).invoke(tc.args);
+        steps.push({
+          node: 'tools',
+          label: `Called tool ${tc.name}`,
+          detail: toTraceJson({ name: tc.name, args: tc.args, result: output }),
+        });
         results.push({
           type: 'tool',
           content: typeof output === 'string' ? output : JSON.stringify(output),
           tool_call_id: tc.id,
         });
       } else {
+        steps.push({
+          node: 'tools',
+          label: `Unknown tool ${tc.name}`,
+          detail: toTraceJson({ name: tc.name, args: tc.args, error: `Unknown tool: ${tc.name}` }),
+        });
         results.push({
           type: 'tool',
           content: JSON.stringify({ ok: false, error: `Unknown tool: ${tc.name}` }),
@@ -142,6 +232,8 @@ export async function runReceptionistGraph(params: {
   let appointment: LangGraphResult['appointment'] = null;
   let response = '';
 
+  const parseSucceeded = Boolean(parsed) && typeof parsed?.reply === 'string';
+
   if (parsed && typeof parsed.reply === 'string') {
     response = parsed.reply;
     intent = sanitizeIntent(parsed.intent);
@@ -180,14 +272,23 @@ export async function runReceptionistGraph(params: {
     if (intent === 'other') intent = 'appointment';
   }
 
+  const source: LangGraphResult['source'] = intent === 'escalate' ? 'escalate' : 'ai';
+
+  steps.push(
+    parseSucceeded
+      ? { node: 'parse', label: 'Parsed assistant output', detail: { intent, department, source } }
+      : { node: 'parse', label: 'Output parsing failed, used defaults' },
+  );
+
   return {
     response,
-    source: intent === 'escalate' ? 'escalate' : 'ai',
+    source,
     intent,
     department,
     lead,
     appointment,
     sources: ragResults,
+    steps: capTraceSteps(steps),
   };
 }
 

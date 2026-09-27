@@ -24,6 +24,8 @@ export class AIController {
       department: result.department,
       lead: result.lead,
       appointment: result.appointment,
+      sources: result.sources,
+      steps: result.steps || [],
     };
   }
 

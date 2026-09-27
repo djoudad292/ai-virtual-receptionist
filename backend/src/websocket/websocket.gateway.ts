@@ -174,7 +174,16 @@ export class WebSocketGateway
           null,
           aiResponse.source === 'escalate' ? 'system' : 'ai',
           aiResponse.response,
-          { sources: aiResponse.sources || [] },
+          {
+            sources: aiResponse.sources || [],
+            intent: aiResponse.intent,
+            confidence: aiResponse.confidence,
+            department: aiResponse.department,
+            source: aiResponse.source,
+            lead: aiResponse.lead,
+            appointment: aiResponse.appointment,
+            steps: aiResponse.steps || [],
+          },
         );
 
         this.server
@@ -188,6 +197,7 @@ export class WebSocketGateway
             lead: aiResponse.lead,
             appointment: aiResponse.appointment,
             sources: aiResponse.sources || [],
+            steps: aiResponse.steps || [],
           });
 
         if (aiResponse.source === 'escalate') {
@@ -285,7 +295,16 @@ export class WebSocketGateway
         null,
         aiResponse.source === 'escalate' ? 'system' : 'ai',
         aiResponse.response,
-        { sources: aiResponse.sources || [] },
+        {
+          sources: aiResponse.sources || [],
+          intent: aiResponse.intent,
+          confidence: aiResponse.confidence,
+          department: aiResponse.department,
+          source: aiResponse.source,
+          lead: aiResponse.lead,
+          appointment: aiResponse.appointment,
+          steps: aiResponse.steps || [],
+        },
       );
 
       this.server
@@ -299,6 +318,7 @@ export class WebSocketGateway
           lead: aiResponse.lead,
           appointment: aiResponse.appointment,
           sources: aiResponse.sources || [],
+          steps: aiResponse.steps || [],
         });
     } catch (err) {
       console.error('AI talk failed:', (err as Error).message);

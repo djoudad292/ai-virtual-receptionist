@@ -559,7 +559,7 @@ export class StoreService {
   async searchChunks(companyId: string, embedding: number[], limit = 5, threshold = 0.35) {
     return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
       `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId",
-              ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4) AS similarity
+              ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks kc
        JOIN knowledge_documents kd ON kd.id = kc.document_id
        WHERE kc.company_id = $1 AND kc.embedding IS NOT NULL AND kd.published = true
@@ -573,7 +573,7 @@ export class StoreService {
   async searchChunksByDocument(documentId: string, embedding: number[], limit = 5, threshold = 0.25) {
     return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
       `SELECT id, chunk_text AS "chunkText", document_id AS "documentId",
-              ROUND((1 - (embedding <=> $2::vector))::numeric, 4) AS similarity
+              ROUND((1 - (embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks
        WHERE document_id = $1 AND embedding IS NOT NULL
          AND (1 - (embedding <=> $2::vector)) >= $3
@@ -604,7 +604,7 @@ export class StoreService {
   async searchChunksPublished(companyId: string, embedding: number[], limit = 6, threshold = 0.25) {
     return this.db.query<{ id: string; chunkText: string; documentId: string; documentTitle: string; similarity: number }>(
       `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", kd.title AS "documentTitle",
-              ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4) AS similarity
+              ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks kc
        JOIN knowledge_documents kd ON kd.id = kc.document_id
        WHERE kc.company_id = $1 AND kc.embedding IS NOT NULL AND kd.published = true
@@ -637,7 +637,7 @@ export class StoreService {
   async searchChunksFull(companyId: string, embedding: number[], limit = 10) {
     return this.db.query<{ id: string; chunkText: string; documentTitle: string; similarity: number }>(
       `SELECT kc.id, kc.chunk_text AS "chunkText", kd.title AS "documentTitle",
-               ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4) AS similarity
+               ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks kc
        JOIN knowledge_documents kd ON kd.id = kc.document_id
        WHERE kc.company_id = $1 AND kc.embedding IS NOT NULL AND kd.published = true

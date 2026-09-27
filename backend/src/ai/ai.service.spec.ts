@@ -195,6 +195,7 @@ describe('AIService generateResponse mode parameter', () => {
     expect(result.response).toBe('Hello from legacy');
     expect(result.intent).toBe('question');
     expect(result.sources).toEqual([]);
+    expect(result.steps).toBeUndefined();
   });
 
   it('support mode (explicit) attempts LangGraph and falls back to legacy on error', async () => {
@@ -248,5 +249,43 @@ describe('AIService generateResponse mode parameter', () => {
     expect(result.response).toBe('LangGraph response');
     expect(result.source).toBe('ai');
     expect(result.confidence).toBe(0.9);
+  });
+
+  it('support mode maps the graph trace steps into the result', async () => {
+    const steps = [
+      { node: 'rag', label: 'Retrieved 2 document chunks', detail: { chunksFound: 2, topSimilarity: 0.81 } },
+      { node: 'tools', label: 'Called tool capture_lead', detail: { name: 'capture_lead', args: { email: 'a@b.com' } } },
+      { node: 'parse', label: 'Parsed assistant output', detail: { intent: 'lead_capture' } },
+    ];
+    (runReceptionistGraph as jest.Mock).mockResolvedValue({
+      response: 'Thanks Alice',
+      source: 'ai',
+      intent: 'lead_capture',
+      department: null,
+      lead: { name: 'Alice', email: 'a@b.com', phone: null },
+      appointment: null,
+      sources: [],
+      steps,
+    });
+
+    const result = await aiService.generateResponse('c1', 'alice@a.com', undefined, 'conv1', { mode: 'support' });
+
+    expect(result.steps).toEqual(steps);
+  });
+
+  it('support mode leaves steps undefined when the graph returns none', async () => {
+    (runReceptionistGraph as jest.Mock).mockResolvedValue({
+      response: 'No trace',
+      source: 'ai',
+      intent: 'question',
+      department: null,
+      lead: null,
+      appointment: null,
+      sources: [],
+    });
+
+    const result = await aiService.generateResponse('c1', 'hello', undefined, 'conv1', { mode: 'support' });
+
+    expect(result.steps).toBeUndefined();
   });
 });
