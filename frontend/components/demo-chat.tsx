@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { BookOpen, MessageSquare, Mic, MicOff, RotateCcw } from 'lucide-react'
+import { BookOpen, CalendarCheck, Mail, MessageSquare, Mic, MicOff, RotateCcw, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { pickMaleVoice } from '@/lib/demo-voice'
-import { askDemo, getDemoAppointments, type DemoAppointment } from '@/lib/demo-api'
+import { askDemo, getDemoAppointments, getDemoLeads, type DemoAppointment, type DemoAction, type DemoLead } from '@/lib/demo-api'
 
 /**
  * Public demo conversation. No account, no API call: the guest is answered by a
@@ -70,6 +70,8 @@ export function DemoChat({ className }: { className?: string }) {
   const [appointments, setAppointments] = useState<DemoAppointment[]>([])
   const [docsNoteIndex, setDocsNoteIndex] = useState<number | null>(null)
   const [hasIntake, setHasIntake] = useState(false)
+  const [actionCards, setActionCards] = useState<Record<number, DemoAction[]>>({})
+  const [leads, setLeads] = useState<DemoLead[]>([])
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const speechRef = useRef<{ timers: number[]; spokenId?: string }>({ timers: [] })
@@ -258,10 +260,18 @@ export function DemoChat({ className }: { className?: string }) {
     } catch {}
   }, [])
 
+  const refreshLeads = useCallback(async () => {
+    try {
+      const data = await getDemoLeads(sessionIdRef.current)
+      setLeads(data.leads ?? [])
+    } catch {}
+  }, [])
+
   useEffect(() => {
     refreshAppointments()
+    refreshLeads()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshAppointments])
+  }, [refreshAppointments, refreshLeads])
 
   // Shared tail of a turn: clear the pending flag, paint the reception reply,
   // and speak it only when Talk is on (the greeting on load is never spoken).
@@ -317,8 +327,10 @@ export function DemoChat({ className }: { className?: string }) {
           // appended (guest + empty reception). `messages` is still the
           // pre-update render value, so its length + 1 is that index.
           if (result.sources?.length > 0) setDocsNoteIndex(messages.length + 1)
+          if (result.actions?.length) setActionCards((prev) => ({ ...prev, [messages.length + 1]: result.actions! }))
           finishMessage(responseText, QUICK_REPLIES)
           refreshAppointments()
+          refreshLeads()
         }
       } catch {
         // fall through to the local rules
@@ -498,6 +510,41 @@ export function DemoChat({ className }: { className?: string }) {
             {msg.role === 'reception' && i === docsNoteIndex && (
               <p className="mt-1 max-w-[85%] px-1 text-[11px] text-fg-muted">answered from your documents</p>
             )}
+            {msg.role === 'reception' && actionCards[i]?.length && (
+              <div
+                role="group"
+                aria-label="Agent actions"
+                className="mt-1 max-w-[85%] space-y-1"
+              >
+                {actionCards[i].map((action, j) => {
+                  const Icon =
+                    action.type === 'lead'
+                      ? UserPlus
+                      : action.type === 'appointment'
+                        ? CalendarCheck
+                        : Mail
+                  let label: string
+                  if (action.type === 'lead') {
+                    label = `Lead saved — ${action.detail ?? ''}`
+                  } else if (action.type === 'appointment') {
+                    label = `Appointment booked — ${action.detail ?? ''}`
+                  } else {
+                    label = `Email ${action.ok ? 'sent' : 'simulated (demo has no SMTP)'} — ${action.detail ?? ''}`
+                  }
+                  return (
+                    <div
+                      key={j}
+                      className="flex items-center gap-1.5 border border-border bg-surface-alt rounded-md px-2.5 py-1.5 text-[11px]"
+                    >
+                      <Icon className="h-3 w-3 shrink-0" />
+                      <span className={cn('truncate', action.ok ? 'text-success' : 'text-fg-muted')}>
+                        {action.ok ? '✓ ' : ''}{label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         ))}
         {pending && (
@@ -508,24 +555,48 @@ export function DemoChat({ className }: { className?: string }) {
         <div ref={endRef} />
       </div>
 
-      {appointments.length > 0 && (
+      {(appointments.length > 0 || leads.length > 0) && (
         <div className="border-t border-border px-4 py-3">
           <p className="mb-2 text-xs font-semibold text-fg">This session</p>
-          <ul className="space-y-1.5">
-            {appointments.map((appt, i) => {
-              const name = typeof appt.customerName === 'string' ? appt.customerName : ''
-              const when = [appt.date, appt.time].filter(Boolean).join(' · ') || appt.title || ''
-              return (
-                <li key={i} className="flex items-center gap-2 text-sm text-fg-secondary">
-                  <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                  <span className="truncate">
-                    {name}
-                    {when ? ` · ${when}` : ''}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+          {appointments.length > 0 && (
+            <>
+              <p className="mb-1 text-[11px] font-medium text-fg-muted">Appointments</p>
+              <ul className="space-y-1.5">
+                {appointments.map((appt, i) => {
+                  const name = typeof appt.customerName === 'string' ? appt.customerName : ''
+                  const when = [appt.date, appt.time].filter(Boolean).join(' · ') || appt.title || ''
+                  return (
+                    <li key={i} className="flex items-center gap-2 text-sm text-fg-secondary">
+                      <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      <span className="truncate">
+                        {name}
+                        {when ? ` · ${when}` : ''}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+          {leads.length > 0 && (
+            <>
+              <p className="mb-1 text-[11px] font-medium text-fg-muted">Details captured</p>
+              <ul className="space-y-1.5">
+                {leads.map((lead, i) => {
+                  const handle = lead.email || lead.phone || ''
+                  return (
+                    <li key={i} className="flex items-center gap-2 text-sm text-fg-secondary">
+                      <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-success" />
+                      <span className="truncate">
+                        {lead.name}
+                        {handle ? ` · ${handle}` : ''}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
         </div>
       )}
 

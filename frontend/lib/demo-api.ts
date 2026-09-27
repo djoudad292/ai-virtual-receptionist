@@ -35,6 +35,7 @@ export interface DemoAskResult {
     [key: string]: unknown
   } | null
   sources: DemoAskSource[]
+  actions?: DemoAction[]
 }
 
 export interface DemoDocument {
@@ -49,6 +50,23 @@ export interface DemoAppointment {
   date?: string
   time?: string
   title?: string
+  [key: string]: unknown
+}
+
+export interface DemoAction {
+  type: 'lead' | 'appointment' | 'email'
+  ok: boolean
+  id?: string | null
+  detail?: string | null
+}
+
+export interface DemoLead {
+  id: string
+  name?: string | null
+  email?: string | null
+  phone?: string | null
+  status?: string
+  createdAt?: string
   [key: string]: unknown
 }
 
@@ -125,6 +143,15 @@ export async function getDemoDocuments(): Promise<{ documents: DemoDocument[] }>
 export async function getDemoAppointments(sessionId: string): Promise<{ appointments: DemoAppointment[] }> {
   return demoFetch<{ appointments: DemoAppointment[] }>(
     `/demo/appointments?sessionId=${encodeURIComponent(sessionId)}`,
+    {},
+    8000,
+  )
+}
+
+/** List leads captured in this browser session. 8s timeout. */
+export async function getDemoLeads(sessionId: string): Promise<{ leads: DemoLead[] }> {
+  return demoFetch<{ leads: DemoLead[] }>(
+    `/demo/leads?sessionId=${encodeURIComponent(sessionId)}`,
     {},
     8000,
   )
