@@ -586,7 +586,15 @@ export class AIService {
     userMessage: string,
     history?: { senderType: string; content: string }[],
     conversationId?: string,
+    opts?: { mode?: 'receptionist' | 'support' },
   ): Promise<ReceptionistResult> {
+    const mode = opts?.mode ?? 'support';
+
+    if (mode === 'receptionist') {
+      this.logger.log('Receptionist mode: using legacy RAG path');
+      return this.generateResponseLegacy(companyId, userMessage, history, conversationId);
+    }
+
     try {
       const { runReceptionistGraph } = await import('./langgraph/agent.graph');
       const lgResult = await runReceptionistGraph({

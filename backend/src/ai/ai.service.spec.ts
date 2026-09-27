@@ -3,6 +3,12 @@ import { AIService } from './ai.service';
 import { StoreService } from '../common/store.service';
 import { MailService } from '../common/mail.service';
 
+jest.mock('./langgraph/agent.graph', () => ({
+  runReceptionistGraph: jest.fn(),
+}));
+
+import { runReceptionistGraph } from './langgraph/agent.graph';
+
 describe('AIService tool-calling loop', () => {
   let aiService: AIService;
   let store: { [key: string]: jest.Mock };
@@ -30,6 +36,7 @@ describe('AIService tool-calling loop', () => {
     }).compile();
 
     aiService = moduleRef.get(AIService);
+    jest.clearAllMocks();
   });
 
   it('executes capture_lead when the model invokes the tool', async () => {
@@ -112,7 +119,7 @@ describe('AIService tool-calling loop', () => {
           ],
         };
       }
-      return { content: '{"reply":"Confirmation email sent!"},"intent":"appointment"', toolCalls: [] };
+      return { content: '{"reply":"Confirmation email sent!","intent":"appointment"}', toolCalls: [] };
     });
 
     const result = await aiService.generateResponse('c1', 'book tomorrow', undefined, 'conv1');
@@ -139,5 +146,107 @@ describe('AIService tool-calling loop', () => {
     const result = await aiService.generateResponse('c1', 'hello', undefined, 'conv1');
     expect(result.response).toBeDefined();
     expect(typeof result.response).toBe('string');
+  });
+});
+
+describe('AIService generateResponse mode parameter', () => {
+  let aiService: AIService;
+  let store: { [key: string]: jest.Mock };
+  let mail: { [key: string]: jest.Mock };
+
+  beforeEach(async () => {
+    store = {
+      findCompanyById: jest.fn().mockResolvedValue({ id: 'c1', name: 'Demo Co' }),
+      listDepartments: jest.fn().mockResolvedValue([]),
+      findConversationById: jest.fn().mockResolvedValue({ id: 'conv1', metadata: {} }),
+      findLeadByConversation: jest.fn().mockResolvedValue(null),
+      createLead: jest.fn().mockImplementation((data) => Promise.resolve({ ...data, id: 'lead-1' })),
+      updateLead: jest.fn().mockImplementation((id, data) => Promise.resolve({ id, ...data })),
+      createAppointment: jest.fn().mockImplementation((data) => Promise.resolve({ ...data, id: 'appt-1' })),
+      updateConversation: jest.fn().mockResolvedValue({ id: 'conv1' }),
+    };
+    mail = { send: jest.fn().mockResolvedValue(true) };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AIService,
+        { provide: StoreService, useValue: store },
+        { provide: MailService, useValue: mail },
+      ],
+    }).compile();
+
+    aiService = moduleRef.get(AIService);
+    jest.clearAllMocks();
+  });
+
+  it('receptionist mode calls generateResponseLegacy directly and never imports LangGraph', async () => {
+    (aiService as any).ragSearch = jest.fn().mockResolvedValue({ context: '', results: [], bestSimilarity: 0 });
+    (aiService as any).chatWithTools = jest.fn().mockResolvedValue({
+      content: '{"reply":"Hello from legacy","intent":"question"}',
+      toolCalls: [],
+    });
+
+    // Make runReceptionistGraph throw if called - this should never be reached in receptionist mode
+    (runReceptionistGraph as jest.Mock).mockRejectedValue(new Error('LangGraph should not be called'));
+
+    const result = await aiService.generateResponse('c1', 'hello', undefined, 'conv1', { mode: 'receptionist' });
+
+    expect(runReceptionistGraph).not.toHaveBeenCalled();
+    expect(result.response).toBe('Hello from legacy');
+    expect(result.intent).toBe('question');
+    expect(result.sources).toEqual([]);
+  });
+
+  it('support mode (explicit) attempts LangGraph and falls back to legacy on error', async () => {
+    (aiService as any).ragSearch = jest.fn().mockResolvedValue({ context: 'kb context', results: [{ chunkText: 'kb', similarity: 0.5 }], bestSimilarity: 0.5 });
+    (aiService as any).chatWithTools = jest.fn().mockResolvedValue({
+      content: '{"reply":"Fallback reply","intent":"question"}',
+      toolCalls: [],
+    });
+
+    // LangGraph throws, should fall back to legacy
+    (runReceptionistGraph as jest.Mock).mockRejectedValue(new Error('LangGraph unavailable'));
+
+    const result = await aiService.generateResponse('c1', 'hello', undefined, 'conv1', { mode: 'support' });
+
+    expect(runReceptionistGraph).toHaveBeenCalledTimes(1);
+    expect(result.response).toBe('Fallback reply');
+    expect(result.intent).toBe('question');
+  });
+
+  it('default mode (omitted) attempts LangGraph and falls back to legacy on error', async () => {
+    (aiService as any).ragSearch = jest.fn().mockResolvedValue({ context: 'kb context', results: [{ chunkText: 'kb', similarity: 0.5 }], bestSimilarity: 0.5 });
+    (aiService as any).chatWithTools = jest.fn().mockResolvedValue({
+      content: '{"reply":"Default fallback","intent":"question"}',
+      toolCalls: [],
+    });
+
+    // LangGraph throws, should fall back to legacy
+    (runReceptionistGraph as jest.Mock).mockRejectedValue(new Error('LangGraph unavailable'));
+
+    const result = await aiService.generateResponse('c1', 'hello', undefined, 'conv1');
+
+    expect(runReceptionistGraph).toHaveBeenCalledTimes(1);
+    expect(result.response).toBe('Default fallback');
+    expect(result.intent).toBe('question');
+  });
+
+  it('support mode returns LangGraph result when it succeeds', async () => {
+    (runReceptionistGraph as jest.Mock).mockResolvedValue({
+      response: 'LangGraph response',
+      source: 'ai',
+      intent: 'question',
+      department: 'Support',
+      lead: null,
+      appointment: null,
+      sources: [{ chunkText: 'lg', similarity: 0.9 }],
+    });
+
+    const result = await aiService.generateResponse('c1', 'hello', undefined, 'conv1', { mode: 'support' });
+
+    expect(runReceptionistGraph).toHaveBeenCalledTimes(1);
+    expect(result.response).toBe('LangGraph response');
+    expect(result.source).toBe('ai');
+    expect(result.confidence).toBe(0.9);
   });
 });

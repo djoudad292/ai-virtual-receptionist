@@ -14,6 +14,7 @@ export class AIController {
       body.message,
       undefined,
       body.conversationId,
+      { mode: 'support' },
     );
     return {
       response: result.response,

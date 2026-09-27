@@ -162,6 +162,7 @@ export class WebSocketGateway
           data.content,
           history,
           data.conversationId,
+          { mode: client.user ? 'support' : 'receptionist' },
         );
 
         this.server
@@ -272,6 +273,7 @@ export class WebSocketGateway
         data.content,
         history,
         data.conversationId,
+        { mode: 'support' },
       );
 
       this.server
