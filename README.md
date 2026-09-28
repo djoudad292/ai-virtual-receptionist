@@ -6,6 +6,18 @@ An AI-powered virtual receptionist that **answers customer questions** (text *an
 
 ![AI Virtual Receptionist — live demo](screenshots/receptionist-hero.png)
 
+![Landing page](screenshots/receptionist-landing.png)
+
+![Live try chat](screenshots/receptionist-try.png)
+
+![Dashboard](screenshots/receptionist-dashboard.png)
+
+![Inbox](screenshots/receptionist-inbox.png)
+
+[Demo video: booking flow](screenshots/receptionist-flow.webm)
+
+[Demo video: dashboard](screenshots/receptionist-dashboard.webm)
+
 ## Architecture
 
 ```
