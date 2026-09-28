@@ -417,6 +417,12 @@ export function DemoChat({ className }: { className?: string }) {
   }
 
   useEffect(() => {
+    const onAsk = (e: CustomEvent) => send(e.detail)
+    window.addEventListener('demo:ask', onAsk as EventListener)
+    return () => window.removeEventListener('demo:ask', onAsk as EventListener)
+  }, [send])
+
+  useEffect(() => {
     return () => {
       cancelSpeech()
       cancelListening()

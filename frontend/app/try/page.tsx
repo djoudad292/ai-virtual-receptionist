@@ -1,4 +1,5 @@
-import type { Metadata } from 'next'
+'use client'
+
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { DemoChat } from '@/components/demo-chat'
@@ -6,12 +7,6 @@ import { DemoUpload } from '@/components/demo-upload'
 import { SiteHeader } from '@/components/site-header'
 import { WakeSplash } from '@/components/wake-splash'
 import { DemoIntake } from '@/components/demo-intake'
-
-export const metadata: Metadata = {
-  title: 'Try the AI Receptionist — live demo',
-  description:
-    'Use the AI receptionist yourself: opening hours, prices, urgent symptoms and a full booking taken in chat. Answers come from the live knowledge base when it is reachable, with built-in demo rules as offline fallback. Toggle Talk to speak out loud and hear the answer with live subtitles.',
-}
 
 const PORTFOLIO_URL = 'https://djaouad.is-a.dev'
 
@@ -68,12 +63,22 @@ export default function TryPage() {
 
               <h2 className="mt-10 text-sm font-semibold tracking-tight">Worth trying</h2>
               <div className="mt-4 grid gap-x-10 gap-y-5 sm:grid-cols-2">
-                {WORTH_TRYING.map((item) => (
-                  <div key={item.ask} className="border-t border-border pt-3">
-                    <p className="text-sm font-semibold text-fg-secondary">{item.ask}</p>
-                    <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{item.does}</p>
-                  </div>
-                ))}
+                 {WORTH_TRYING.map((item) => (
+                   <div key={item.ask} className="border-t border-border pt-3">
+                     <button
+                       type="button"
+                       onClick={() => {
+                         window.dispatchEvent(new CustomEvent('demo:ask', { detail: item.ask }))
+                         const demo = document.getElementById('demo')
+                         if (demo) demo.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                       }}
+                       className="text-left text-sm font-semibold text-fg-secondary hover:text-fg"
+                     >
+                       {item.ask}
+                     </button>
+                     <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{item.does}</p>
+                   </div>
+                 ))}
               </div>
 
               <ul className="mt-8 space-y-2 text-sm text-fg-muted">
