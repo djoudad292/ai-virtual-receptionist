@@ -26,5 +26,5 @@ export const Colors = {
   slateSoft: 'rgba(100,116,139,0.12)',
 } as const
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ai-receptionist-backend-h14q.onrender.com'
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://ai-virtual-receptionist-sigma.vercel.app'
 export const WS_URL = process.env.EXPO_PUBLIC_WS_URL || API_URL

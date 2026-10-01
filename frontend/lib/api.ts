@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-receptionist-backend-h14q.onrender.com'
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ai-virtual-receptionist-sigma.vercel.app'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 

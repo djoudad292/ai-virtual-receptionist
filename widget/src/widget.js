@@ -4,8 +4,8 @@
   var script = document.currentScript;
   if (!script) return;
 
-  var apiUrl = script.getAttribute('data-api-url') || 'https://ai-receptionist-backend-h14q.onrender.com';
-  var wsUrl = script.getAttribute('data-ws-url') || 'https://ai-receptionist-backend-h14q.onrender.com';
+  var apiUrl = script.getAttribute('data-api-url') || 'https://ai-virtual-receptionist-sigma.vercel.app';
+  var wsUrl = script.getAttribute('data-ws-url') || 'https://ai-virtual-receptionist-sigma.vercel.app';
   var companyId = script.getAttribute('data-company-id');
   var primaryColor = script.getAttribute('data-primary-color') || '#3b82f6';
   var position = script.getAttribute('data-position') || 'right';
