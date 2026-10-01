@@ -9,6 +9,8 @@ export class HealthController {
     const diag: any = {
       status: 'ok',
       timestamp: new Date().toISOString(),
+      // Serverless (Vercel) can't host socket.io — clients should use REST realtime.
+      ws: !process.env.VERCEL,
       ai: {
         hasOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
         hasGeminiKey: !!process.env.GEMINI_API_KEY,

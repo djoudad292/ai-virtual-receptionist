@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { getSocketUrl, apiFetch } from '@/lib/api'
+import { getSocketUrl, apiFetch, restSendMessage } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import { Mic, MicOff, Plus, X, Loader2 } from 'lucide-react'
 
@@ -35,6 +35,7 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
   const [newTalk, setNewTalk] = useState(false)
 
   const socketRef = useRef<Socket | null>(null)
+  const restModeRef = useRef(false)
   const recognitionRef = useRef<any>(null)
   const conversationIdRef = useRef<string | null>(null)
   const subtitleRef = useRef<{ timers: number[]; spokenId?: string }>({ timers: [] })
@@ -157,11 +158,28 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
   }, [speaking, aiThinking])
 
   const sendTalk = useCallback((content: string) => {
-    const s = socketRef.current
     const id = conversationIdRef.current
-    if (!s || !id) return
-    s.emit('aiTalk', { conversationId: id, content })
-  }, [])
+    if (!id) return
+    const s = socketRef.current
+    if (s && !restModeRef.current) {
+      s.emit('aiTalk', { conversationId: id, content })
+      return
+    }
+    // REST fallback (serverless — no WebSockets)
+    setAiThinking(true)
+    restSendMessage(id, content, { senderType: 'user' })
+      .then((result) => {
+        if (result.userMessage) appendMessage(result.userMessage)
+        if (result.aiMessage?.senderType === 'ai') {
+          appendMessage(result.aiMessage)
+          speak(result.aiMessage.content)
+        } else if (result.aiMessage) {
+          appendMessage(result.aiMessage)
+        }
+      })
+      .catch(() => addToast('Failed to reach the AI', 'error'))
+      .finally(() => setAiThinking(false))
+  }, [appendMessage, speak, addToast])
 
   const toggleMic = () => {
     if (speaking) return
@@ -219,6 +237,12 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
 
     s.on('connect', () => {
       setConnecting(true)
+      createConversation()
+    })
+    s.on('connect_error', () => {
+      // Serverless backend (Vercel) — fall back to REST round trips.
+      if (restModeRef.current) return
+      restModeRef.current = true
       createConversation()
     })
     s.on('newMessage', (msg: TalkMessage) => {

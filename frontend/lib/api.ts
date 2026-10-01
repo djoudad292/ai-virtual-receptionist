@@ -103,6 +103,33 @@ export function getSocketUrl() {
   return process.env.NEXT_PUBLIC_WS_URL || API_URL
 }
 
+// ---- REST realtime (used when WebSockets are unavailable, e.g. Vercel) ----
+// POST returns the user message + AI answer in one round trip.
+
+export interface RealtimeResult {
+  userMessage?: any
+  aiMessage?: any
+  ai?: any
+}
+
+export async function restSendMessage(
+  conversationId: string,
+  content: string,
+  opts: { companyId?: string; senderType?: 'user' | 'agent' } = {},
+): Promise<RealtimeResult> {
+  return apiFetch(`/realtime/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content, ...opts }),
+  }, { retries: 1 })
+}
+
+// Returns messages created after `sinceId` (or all messages if sinceId unknown).
+export async function restPollMessages(conversationId: string, sinceId?: string): Promise<any[]> {
+  const qs = sinceId ? `?since=${encodeURIComponent(sinceId)}` : ''
+  const data = await apiFetch(`/realtime/conversations/${conversationId}/messages${qs}`, undefined, { retries: 0 })
+  return Array.isArray(data) ? data : []
+}
+
 // Normalizes paginated responses ({items, total, page, perPage}) and plain arrays
 // into {items, total, page, perPage} for consistent consumption in views.
 export function paginate<T = any>(data: any): { items: T[]; total: number; page: number; perPage: number } {

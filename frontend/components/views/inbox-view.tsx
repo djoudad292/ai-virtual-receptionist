@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch, getSocketUrl, paginate } from '@/lib/api'
+import { apiFetch, getSocketUrl, paginate, restSendMessage, restPollMessages } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft, Sparkles, PhoneCall, Plus } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
@@ -283,7 +283,10 @@ export default function InboxView() {
   const [search, setSearch] = useState('')
   const [suggesting, setSuggesting] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
+  const [restMode, setRestMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesRef = useRef<Message[]>([])
+  messagesRef.current = messages
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -309,7 +312,11 @@ export default function InboxView() {
       timeout: 15000,
       auth: { token: token || '' },
     })
-    s.on('connect', () => { setSocket(s); socketRef.current = s })
+    s.on('connect', () => { setSocket(s); socketRef.current = s; setRestMode(false) })
+    s.on('connect_error', () => {
+      // Serverless backends have no WebSockets — switch to REST polling.
+      setRestMode(true)
+    })
     s.on('newMessage', (msg: Message) => {
       if (msg.conversationId && msg.conversationId !== selectedConvRef.current) return
       setMessages((prev) => {
@@ -347,6 +354,29 @@ export default function InboxView() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // REST mode: poll for new messages (other participants / escalations).
+  useEffect(() => {
+    if (!restMode || !selectedConv) return
+    const timer = setInterval(() => {
+      const lastId = selectedConvRef.current && messagesRef.current.length
+        ? messagesRef.current[messagesRef.current.length - 1]?.id
+        : undefined
+      restPollMessages(selectedConv, lastId)
+        .then((fresh) => {
+          if (!fresh.length) return
+          setMessages((prev) => {
+            const next = [...prev]
+            for (const m of fresh) {
+              if (!next.some((x) => x.id === m.id)) next.push(m)
+            }
+            return next
+          })
+        })
+        .catch(() => {})
+    }, 4000)
+    return () => clearInterval(timer)
+  }, [restMode, selectedConv])
+
   const sendMessage = async () => {
     if (!input.trim() || !selectedConv) return
     const content = input.trim()
@@ -354,12 +384,27 @@ export default function InboxView() {
     const conv = conversations.find((c) => c.id === selectedConv)
     const senderType = conv?.assignedAgentId ? 'agent' : 'user'
     const s = socketRef.current
-    if (!s) {
-      setInput(content)
-      addToast('Chat not connected', 'error')
+    if (s && !restMode) {
+      s.emit('sendMessage', { conversationId: selectedConv, content, senderType })
       return
     }
-    s.emit('sendMessage', { conversationId: selectedConv, content, senderType })
+    // REST round trip: server replies with user + AI messages together.
+    setIsThinking(true)
+    try {
+      const result = await restSendMessage(selectedConv, content, { senderType })
+      setMessages((prev) => {
+        const next = [...prev]
+        for (const m of [result.userMessage, result.aiMessage]) {
+          if (m && !next.some((x) => x.id === m.id)) next.push(m)
+        }
+        return next
+      })
+    } catch {
+      setInput(content)
+      addToast('Failed to send message', 'error')
+    } finally {
+      setIsThinking(false)
+    }
   }
 
   const handleSuggestReply = async () => {

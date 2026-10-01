@@ -12,6 +12,8 @@
   var title = script.getAttribute('data-title') || 'Customer Support';
 
   var socket = null;
+  var restMode = false;
+  var connectErrors = 0;
   var conversationId = null;
   var messages = [];
   var isOpen = false;
@@ -568,7 +570,8 @@
   /* ---- WebSocket ---- */
   function connect() {
     loadSocketIO(function () {
-      warmUp(function () {
+      warmUp(function (skipSocket) {
+        if (skipSocket) return; // REST mode already active (serverless backend)
         if (socket) {
           socket.disconnect();
         }
@@ -652,6 +655,13 @@
         });
 
         socket.on('connect_error', function (err) {
+          connectErrors++;
+          if (restMode) return;
+          // Serverless backends (Vercel) have no WebSockets — switch to REST.
+          if (connectErrors >= 2) {
+            enterRestMode();
+            return;
+          }
           setConnected(false);
           showBanner('Reconnecting…', 'reconnect');
         });
@@ -660,6 +670,59 @@
   }
 
   /* ---- REST helpers ---- */
+
+  /* Serverless backend: no WebSockets. Enable REST round trips. */
+  function enterRestMode() {
+    restMode = true;
+    try { if (socket) socket.disconnect(); } catch (e) {}
+    hideBanner();
+    setConnected(true);
+    if (!conversationId) createConversation(function () {});
+  }
+
+  function restSend(text) {
+    showTyping(true);
+    var xhr = new XMLHttpRequest();
+    xhr.timeout = 60000;
+    xhr.open('POST', apiUrl + '/realtime/conversations/' + conversationId + '/messages', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onload = function () {
+      showTyping(false);
+      if (xhr.status < 200 || xhr.status >= 300) {
+        addMessage({ content: 'Could not reach the assistant. Please try again.', senderType: 'system', timestamp: timeStr() });
+        return;
+      }
+      var data = {};
+      try { data = JSON.parse(xhr.responseText) || {}; } catch (e) {}
+      var ai = data.aiMessage || {};
+      var content = typeof ai.content === 'string' ? ai.content : '';
+      if (content) {
+        var msg = { content: content, senderType: 'bot', timestamp: timeStr(), sources: (data.ai && data.ai.sources) || [] };
+        messages.push(msg);
+        addMessage(msg);
+        if (inCall) callSpeak(content);
+        var meta = data.ai || {};
+        if (meta.appointment && meta.appointment.date) {
+          notify('Appointment requested: ' + (meta.appointment.date || '') + (meta.appointment.time ? ' at ' + meta.appointment.time : '') + '. We will confirm shortly.');
+        } else if (meta.lead && (meta.lead.email || meta.lead.phone)) {
+          notify('Thank you! Your details have been saved. A team member will get back to you soon.');
+        }
+        if (meta.department) {
+          notify('This conversation has been routed to our ' + meta.department + ' team.');
+        }
+      }
+    };
+    xhr.onerror = function () {
+      showTyping(false);
+      addMessage({ content: 'Could not reach the assistant. Please try again.', senderType: 'system', timestamp: timeStr() });
+    };
+    xhr.ontimeout = function () {
+      showTyping(false);
+      addMessage({ content: 'The assistant took too long to reply. Please try again.', senderType: 'system', timestamp: timeStr() });
+    };
+    xhr.send(JSON.stringify({ content: text, senderType: 'user', companyId: companyId }));
+  }
+
   function createConversation(cb) {
     var xhr = new XMLHttpRequest();
     xhr.open('POST', apiUrl + '/conversations', true);
@@ -694,6 +757,14 @@
     xhr.open('GET', apiUrl + '/api/health', true);
     xhr.onload = function () {
       wakingUp = false;
+      // Backend tells us whether WebSockets are available (false on Vercel).
+      var wsOk = true;
+      try { wsOk = JSON.parse(xhr.responseText).ws !== false; } catch (e) {}
+      if (!wsOk) {
+        enterRestMode();
+        if (cb) cb(true);
+        return;
+      }
       if (cb) cb();
     };
     xhr.onerror = function () {
@@ -710,7 +781,7 @@
   /* ---- send message ---- */
   function sendMessage() {
     var text = inputEl.value.trim();
-    if (!text || !isConnected || !socket) return;
+    if (!text || !isConnected || (!socket && !restMode)) return;
     inputEl.value = '';
 
     if (!conversationId) {
@@ -724,7 +795,7 @@
           return;
         }
         conversationId = id;
-        socket.emit('joinConversation', { conversationId: conversationId, companyId: companyId });
+        if (socket && !restMode) socket.emit('joinConversation', { conversationId: conversationId, companyId: companyId });
         doSend(text);
       });
       return;
@@ -737,9 +808,13 @@
     var msg = { content: text, senderType: 'user', timestamp: timeStr() };
     messages.push(msg);
     addMessage(msg);
+    scrollBottom();
+    if (restMode || !socket) {
+      restSend(text);
+      return;
+    }
     showTyping(true);
     socket.emit('sendMessage', { conversationId: conversationId, content: text, senderType: 'user', companyId: companyId });
-    scrollBottom();
   }
 
   /* ---- voice input (speech-to-text) ---- */
@@ -761,7 +836,7 @@
           callMicEl.classList.remove('active');
           setCallStatus('Thinking…');
         }
-        if (text && isConnected && socket) sendMessage();
+        if (text && isConnected && (socket || restMode)) sendMessage();
       }
     };
     r.onerror = function (e) {
@@ -883,7 +958,7 @@
   function startCall() {
     if (inCall) return;
     if (!micSupported) { notify('Voice call is not supported in this browser.'); return; }
-    if (!isConnected || !socket) { notify('Please wait, still connecting…'); return; }
+    if (!isConnected || (!socket && !restMode)) { notify('Please wait, still connecting…'); return; }
     inCall = true;
     if (inputRowEl) inputRowEl.style.display = 'none';
     callScreen.classList.add('open');
