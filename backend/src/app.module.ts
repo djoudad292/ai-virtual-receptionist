@@ -10,6 +10,7 @@ import { AIModule } from './ai/ai.module';
 import { KnowledgeBaseModule } from './knowledge-base/knowledge-base.module';
 import { AgentsModule } from './agents/agents.module';
 import { WebSocketModule } from './websocket/websocket.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { DatabaseModule } from './common/database.module';
 import { LeadsModule } from './leads/leads.module';
 import { AppointmentsModule } from './appointments/appointments.module';
@@ -51,6 +52,7 @@ import { HealthController } from './health/health.controller';
     AppointmentsModule,
     DepartmentsModule,
     WebSocketModule,
+    RealtimeModule,
     WidgetModule,
     DemoModule,
   ],

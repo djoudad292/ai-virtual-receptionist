@@ -12,7 +12,9 @@ import { DatabaseService } from './common/database.service';
 import { StoreService } from './common/store.service';
 import { AIService } from './ai/ai.service';
 
-async function bootstrap() {
+let appPromise: Promise<NestExpressApplication> | null = null;
+
+async function buildApp(): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
@@ -20,12 +22,15 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   // Serve the embeddable chat widget: GET /widget.js
-  const publicDir = join(__dirname, '..', 'public');
-  if (existsSync(publicDir)) {
+  // Output layout differs: nested under dist/src when api/ is compiled alongside.
+  const publicDir = [join(__dirname, '..', 'public'), join(__dirname, '..', '..', 'public')].find((d) =>
+    existsSync(d),
+  );
+  if (publicDir) {
     app.useStaticAssets(publicDir, { index: false });
     logger.log(`Serving static assets from ${publicDir}`);
   } else {
-    logger.warn(`public dir not found at ${publicDir}; /widget.js will 404`);
+    logger.warn('public dir not found; /widget.js will 404');
   }
 
   app.enableCors({
@@ -61,9 +66,27 @@ async function bootstrap() {
   await db.initialize();
   await seedDemoData(store, ai, logger);
 
+  if (process.env.VERCEL) {
+    await app.init();
+  }
+  return app;
+}
+
+async function getHandler(): Promise<NestExpressApplication> {
+  if (!appPromise) {
+    appPromise = buildApp().catch((err) => {
+      appPromise = null;
+      throw err;
+    });
+  }
+  return appPromise;
+}
+
+async function bootstrap() {
+  const app = await getHandler();
   const port = process.env.PORT || 4000;
   await app.listen(port, '0.0.0.0');
-  logger.log(`Application is running on: http://0.0.0.0:${port}`);
+  console.log(`Application is running on: http://0.0.0.0:${port}`);
 }
 
 async function seedDemoData(store: StoreService, ai: AIService, logger: Logger) {
@@ -148,7 +171,11 @@ async function seedDemoData(store: StoreService, ai: AIService, logger: Logger) 
   }
 }
 
-bootstrap().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+if (!process.env.VERCEL) {
+  bootstrap().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+export { getHandler };

@@ -4,7 +4,7 @@
   "description": "AI Customer Support SaaS Platform - Backend",
   "scripts": {
     "build": "nest build",
-    "start": "node dist/main",
+    "start": "node dist/src/main",
     "dev": "nest start --watch",
     "test": "jest --runInBand"
   },

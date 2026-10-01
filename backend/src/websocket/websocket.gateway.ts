@@ -8,21 +8,17 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
-import { ChatService } from '../chat/chat.service';
-import { AIService } from '../ai/ai.service';
-import { StoreService } from '../common/store.service';
-import { JWT_SECRET } from '../common/config';
+import { RealtimeService, RealtimeAuth } from '../realtime/realtime.service';
 
 interface AuthenticatedSocket extends Socket {
-  user?: {
-    id: string;
-    email: string;
-    role: string;
-    companyId?: string;
-  };
+  user?: RealtimeAuth;
 }
 
+/**
+ * Thin transport over RealtimeService — same flow as the REST realtime
+ * controller used on Vercel. Keep event names/contract unchanged so the
+ * existing frontend keeps working against long-lived hosts.
+ */
 @WsGateway({
   cors: {
     origin: '*',
@@ -35,12 +31,7 @@ export class WebSocketGateway
   @WebSocketServer()
   server: Server;
 
-  constructor(
-    private jwtService: JwtService,
-    private chatService: ChatService,
-    private aiService: AIService,
-    private store: StoreService,
-  ) {}
+  constructor(private realtime: RealtimeService) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     const token =
@@ -48,37 +39,16 @@ export class WebSocketGateway
       client.handshake.query?.token ||
       client.handshake.headers?.authorization?.replace('Bearer ', '');
 
-    if (!token) {
-      client.emit('connected', { userId: client.id });
-      return;
+    const user = token
+      ? await this.realtime.resolveAuth(`Bearer ${token}`)
+      : null;
+
+    if (user) {
+      client.user = user;
+      if (user.companyId) client.join(`company:${user.companyId}`);
     }
 
-    try {
-      const payload = this.jwtService.verify(token, {
-        secret: JWT_SECRET(),
-      });
-
-      const user = await this.store.findUserById(payload.sub);
-      if (!user || payload.ver !== user.tokenVersion) {
-        client.emit('connected', { userId: client.id });
-        return;
-      }
-
-      client.user = {
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
-        companyId: payload.companyId,
-      };
-
-      if (client.user.companyId) {
-        client.join(`company:${client.user.companyId}`);
-      }
-
-      client.emit('connected', { userId: client.user.id });
-    } catch {
-      client.emit('connected', { userId: client.id });
-    }
+    client.emit('connected', { userId: user?.id || client.id });
   }
 
   handleDisconnect(client: AuthenticatedSocket) {
@@ -93,20 +63,12 @@ export class WebSocketGateway
     @MessageBody() data: { conversationId: string; companyId?: string },
   ) {
     if (!data?.conversationId) return;
-
-    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
-    if (!conversationCompany) return;
-
-    if (client.user?.companyId) {
-      if (client.user.companyId !== conversationCompany) {
-        client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
-        return;
-      }
-    } else if (data.companyId !== conversationCompany) {
-      client.emit('error', { message: 'Forbidden: invalid company for conversation' });
+    try {
+      await this.realtime.checkAccess(data.conversationId, client.user || null, data.companyId);
+    } catch {
+      client.emit('error', { message: 'Forbidden: conversation access denied' });
       return;
     }
-
     client.join(`conversation:${data.conversationId}`);
   }
 
@@ -117,119 +79,29 @@ export class WebSocketGateway
   ) {
     if (!data?.conversationId || !data?.content) return;
 
-    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
-    if (!conversationCompany) return;
+    const room = this.server.to(`conversation:${data.conversationId}`);
 
-    if (client.user?.companyId) {
-      if (client.user.companyId !== conversationCompany) {
-        client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
-        return;
+    try {
+      if (data.senderType !== 'agent') room.emit('aiThinking', { isThinking: true });
+
+      const result = await this.realtime.sendUserMessage(data.conversationId, data.content, {
+        auth: client.user || null,
+        companyId: data.companyId,
+        senderType: data.senderType,
+      });
+
+      room.emit('newMessage', result.userMessage);
+
+      if (result.aiMessage && data.senderType !== 'agent') {
+        room.emit('aiThinking', { isThinking: false });
+        room.emit('aiResponse', {
+          message: result.aiMessage,
+          ...result.ai,
+        });
       }
-    } else if (data.companyId !== conversationCompany) {
-      client.emit('error', { message: 'Forbidden: invalid company for conversation' });
-      return;
-    }
-
-    const senderId = client.user?.id || null;
-    const isAgent = client.user?.role === 'AGENT' || client.user?.role === 'COMPANY_ADMIN';
-    // Allow override, otherwise default to agent if isAgent
-    const senderType = data.senderType || (isAgent ? 'agent' : 'user');
-
-    const message = await this.chatService.sendMessage(
-      data.conversationId,
-      senderId,
-      senderType,
-      data.content,
-    );
-
-    this.server
-      .to(`conversation:${data.conversationId}`)
-      .emit('newMessage', message);
-
-    if (senderType === 'user') {
-      this.server
-        .to(`conversation:${data.conversationId}`)
-        .emit('aiThinking', { isThinking: true });
-
-      try {
-        const companyId =
-          client.user?.companyId ||
-          (await this.chatService.getConversationCompanyId(data.conversationId));
-
-        const history = await this.chatService.getMessages(data.conversationId);
-        const aiResponse = await this.aiService.generateResponse(
-          companyId,
-          data.content,
-          history,
-          data.conversationId,
-          { mode: client.user ? 'support' : 'receptionist' },
-        );
-
-        this.server
-          .to(`conversation:${data.conversationId}`)
-          .emit('aiThinking', { isThinking: false });
-
-        const aiMessage = await this.chatService.sendMessage(
-          data.conversationId,
-          null,
-          aiResponse.source === 'escalate' ? 'system' : 'ai',
-          aiResponse.response,
-          {
-            sources: aiResponse.sources || [],
-            intent: aiResponse.intent,
-            confidence: aiResponse.confidence,
-            department: aiResponse.department,
-            source: aiResponse.source,
-            lead: aiResponse.lead,
-            appointment: aiResponse.appointment,
-            steps: aiResponse.steps || [],
-          },
-        );
-
-        this.server
-          .to(`conversation:${data.conversationId}`)
-          .emit('aiResponse', {
-            message: aiMessage,
-            source: aiResponse.source,
-            confidence: aiResponse.confidence,
-            intent: aiResponse.intent,
-            department: aiResponse.department,
-            lead: aiResponse.lead,
-            appointment: aiResponse.appointment,
-            sources: aiResponse.sources || [],
-            steps: aiResponse.steps || [],
-          });
-
-        if (aiResponse.source === 'escalate') {
-          await this.chatService.escalateConversation(data.conversationId);
-          await this.chatService.sendMessage(
-            data.conversationId,
-            null,
-            'system',
-            'This conversation has been escalated to a human agent.',
-          );
-        }
-      } catch (err) {
-        console.error('AI response failed:', (err as Error).message);
-        this.server
-          .to(`conversation:${data.conversationId}`)
-          .emit('aiThinking', { isThinking: false });
-
-        const errorMessage = await this.chatService.sendMessage(
-          data.conversationId,
-          null,
-          'system',
-          'Sorry, the AI service is having trouble. A human agent will be with you shortly.',
-        );
-
-        this.server
-          .to(`conversation:${data.conversationId}`)
-          .emit('aiResponse', {
-            message: errorMessage,
-            source: 'escalate',
-            confidence: 0,
-          });
-      }
+    } catch (err) {
+      client.emit('error', { message: (err as Error).message || 'Failed to send message' });
+      room.emit('aiThinking', { isThinking: false });
     }
   }
 
@@ -239,13 +111,10 @@ export class WebSocketGateway
     @MessageBody() data: { conversationId: string; isTyping: boolean },
   ) {
     if (!data?.conversationId) return;
-
-    client
-      .to(`conversation:${data.conversationId}`)
-      .emit('typing', {
-        userId: client.user?.id || client.id,
-        isTyping: data.isTyping,
-      });
+    client.to(`conversation:${data.conversationId}`).emit('typing', {
+      userId: client.user?.id || client.id,
+      isTyping: data.isTyping,
+    });
   }
 
   @SubscribeMessage('aiTalk')
@@ -255,76 +124,21 @@ export class WebSocketGateway
   ) {
     if (!data?.conversationId || !data?.content || !client.user) return;
 
-    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
-    if (!conversationCompany || conversationCompany !== client.user.companyId) {
-      client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
-      return;
-    }
-
-    const message = await this.chatService.sendMessage(
-      data.conversationId,
-      client.user.id,
-      'user',
-      data.content,
-    );
-
-    this.server
-      .to(`conversation:${data.conversationId}`)
-      .emit('newMessage', message);
-
-    this.server
-      .to(`conversation:${data.conversationId}`)
-      .emit('aiThinking', { isThinking: true });
-
+    const room = this.server.to(`conversation:${data.conversationId}`);
     try {
-      const history = await this.chatService.getMessages(data.conversationId);
-      const aiResponse = await this.aiService.generateResponse(
-        conversationCompany,
-        data.content,
-        history,
-        data.conversationId,
-        { mode: 'support' },
-      );
-
-      this.server
-        .to(`conversation:${data.conversationId}`)
-        .emit('aiThinking', { isThinking: false });
-
-      const aiMessage = await this.chatService.sendMessage(
-        data.conversationId,
-        null,
-        aiResponse.source === 'escalate' ? 'system' : 'ai',
-        aiResponse.response,
-        {
-          sources: aiResponse.sources || [],
-          intent: aiResponse.intent,
-          confidence: aiResponse.confidence,
-          department: aiResponse.department,
-          source: aiResponse.source,
-          lead: aiResponse.lead,
-          appointment: aiResponse.appointment,
-          steps: aiResponse.steps || [],
-        },
-      );
-
-      this.server
-        .to(`conversation:${data.conversationId}`)
-        .emit('aiResponse', {
-          message: aiMessage,
-          source: aiResponse.source,
-          confidence: aiResponse.confidence,
-          intent: aiResponse.intent,
-          department: aiResponse.department,
-          lead: aiResponse.lead,
-          appointment: aiResponse.appointment,
-          sources: aiResponse.sources || [],
-          steps: aiResponse.steps || [],
-        });
+      room.emit('aiThinking', { isThinking: true });
+      const result = await this.realtime.sendUserMessage(data.conversationId, data.content, {
+        auth: client.user,
+        mode: 'support',
+      });
+      room.emit('newMessage', result.userMessage);
+      room.emit('aiThinking', { isThinking: false });
+      if (result.aiMessage) {
+        room.emit('aiResponse', { message: result.aiMessage, ...result.ai });
+      }
     } catch (err) {
-      console.error('AI talk failed:', (err as Error).message);
-      this.server
-        .to(`conversation:${data.conversationId}`)
-        .emit('aiThinking', { isThinking: false });
+      client.emit('error', { message: (err as Error).message || 'AI talk failed' });
+      room.emit('aiThinking', { isThinking: false });
     }
   }
 
@@ -334,19 +148,11 @@ export class WebSocketGateway
     @MessageBody() data: { conversationId: string },
   ) {
     if (!data?.conversationId || !client.user) return;
-
-    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
-    if (!conversationCompany || conversationCompany !== client.user.companyId) {
-      client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
-      return;
+    try {
+      await this.realtime.agentJoin(data.conversationId, client.user);
+    } catch (err) {
+      client.emit('error', { message: (err as Error).message });
     }
-
-    await this.chatService.sendMessage(
-      data.conversationId,
-      client.user.id,
-      'agent',
-      'An agent has joined the conversation.',
-    );
   }
 
   @SubscribeMessage('takeover')
@@ -355,31 +161,13 @@ export class WebSocketGateway
     @MessageBody() data: { conversationId: string },
   ) {
     if (!data?.conversationId || !client.user) return;
-
-    const conversationCompany = await this.chatService.getConversationCompanyId(data.conversationId);
-    if (!conversationCompany || conversationCompany !== client.user.companyId) {
-      client.emit('error', { message: 'Forbidden: conversation belongs to another company' });
-      return;
+    try {
+      const result = await this.realtime.takeover(data.conversationId, client.user);
+      this.server
+        .to(`conversation:${data.conversationId}`)
+        .emit('takeover', result);
+    } catch (err) {
+      client.emit('error', { message: (err as Error).message });
     }
-
-    const agent = await this.chatService.assignAgent(
-      data.conversationId,
-      client.user.id,
-      client.user.companyId,
-    );
-
-    const systemMessage = await this.chatService.sendMessage(
-      data.conversationId,
-      null,
-      'system',
-      'An agent has taken over this conversation.',
-    );
-
-    this.server
-      .to(`conversation:${data.conversationId}`)
-      .emit('takeover', {
-        agent: agent,
-        message: systemMessage,
-      });
   }
 }
