@@ -1,9 +1,24 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header, NotFoundException } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 @SkipThrottle({ global: true, strict: true })
 @Controller()
 export class HealthController {
+  // Embeddable widget: GET /widget.js
+  // Literal paths so Vercel's file tracer includes them in the bundle.
+  @Get('widget.js')
+  @Header('Content-Type', 'application/javascript; charset=utf-8')
+  widgetJs(): string {
+    const candidates = [
+      join(__dirname, '..', '..', 'public', 'widget.js'), // src/ (dev)
+      join(__dirname, '..', '..', '..', 'public', 'widget.js'), // dist/src/health (serverless)
+    ];
+    const file = candidates.find((p) => existsSync(p));
+    if (!file) throw new NotFoundException('widget.js not found');
+    return readFileSync(file, 'utf8');
+  }
   @Get('api/health')
   async check() {
     const diag: any = {
