@@ -196,7 +196,7 @@ The backend is a long-running NestJS + Socket.io server, so it needs a container
 | `typing` | Bidirectional | Typing indicator |
 | `newMessage` | Server → Client | New message received |
 | `aiThinking` | Server → Client | AI is typing |
-| `aiResponse` | Server → Client | AI reply + `intent`, `department`, `lead`, `appointment` |
+| `aiResponse` | Server → Client | AI reply + `intent`, `department`, `lead`, `appointment`, `retrievalMode` |
 | `takeover` | Server → Client | Agent took over from AI |
 
 ## Environment Variables
@@ -209,9 +209,95 @@ See `backend/.env.example` for the full list. Key ones:
 | `OPENROUTER_API_KEY` | Yes | LLM provider |
 | `OPENROUTER_MODEL` | No | Default `google/gemini-2.5-flash` |
 | `GEMINI_API_KEY` | No | Gemini fallback — free-tier function calling for tools |
-| `OPENAI_API_KEY` | No | Embeddings; falls back to local hashing if empty |
+| `OPENAI_API_KEY` | No | Embeddings. Without it retrieval runs in `keyword-degraded` mode |
+| `ALLOW_HASH_EMBEDDINGS` | No | `true` opts into serving hash vectors when OpenAI fails. Default `false` |
+| `RAG_SIMILARITY_THRESHOLD` | No | Cosine floor for vector retrieval (default `0.2`) |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | No | Send confirmation emails; if empty, emails are logged instead |
 | `JWT_SECRET` / `JWT_REFRESH_SECRET` | Yes | Auth secrets |
+
+### Retrieval modes (degradation is visible, never silent)
+
+Every answer reports which mode grounded it, as `retrievalMode`:
+
+| Mode | Meaning |
+|------|---------|
+| `vector` | Real OpenAI embeddings, cosine similarity above `RAG_SIMILARITY_THRESHOLD` |
+| `keyword-degraded` | OpenAI embeddings unavailable. Retrieval falls back to keyword (term-overlap) scoring. Less recall on paraphrases, but never wrong-by-confidence |
+| `hash-fallback` | `ALLOW_HASH_EMBEDDINGS=true` and OpenAI failed. Hash vectors have no semantic signal, so they are **never** used for vector search — retrieval degrades to keyword as well |
+
+A hash "embedding" is a hash bucket, not a semantic vector. Feeding it into
+pgvector made retrieval return confident wrong answers instead of admitting it
+was degraded, so it now requires an explicit opt-in and is never searched.
+
+Check the live mode at any time — public, unauthenticated:
+
+```bash
+curl https://<backend>/health/embeddings
+# {"mode":"vector","model":"text-embedding-3-small","openaiConfigured":true,
+#  "allowHashEmbeddings":false,"lastEmbeddingSuccessAt":"...","lastDegradedAt":null}
+```
+
+`lastDegradedAt` moves whenever embeddings or retrieval degrade, even if `mode`
+is still `vector` — `mode` is the mode the deployment is *configured* to serve,
+`lastDegradedAt` is what actually happened. With no key and no opt-in, read the
+pair (`openaiConfigured: false`, `allowHashEmbeddings: false`, `lastDegradedAt`
+set) as "retrieval is running keyword-degraded". At startup the app logs one
+line:
+
+```
+embeddings: configured=true mode=vector allowHash=false
+```
+
+Degradation markers are logged once per process with stable, greppable names:
+`EMBEDDINGS_DEGRADED` (embedding provider) and `RETRIEVAL_DEGRADED` (retrieval
+fell back to keyword). Aggregate counts live in `GET /metrics/ai` instead of the
+log, so a busy process does not flood.
+
+## Observability
+
+- `GET /metrics/ai` (JWT, scoped to your company) — LLM requests, tokens by
+  model, avg/p95 latency, error count, optional cost estimate, and the
+  retrieval-mode mix (`retrieval.byMode`, `retrieval.degradedShare`).
+  Token/latency data is persisted per call in the `llm_usage` table; retrieval
+  mode per call in `retrieval_metrics`. Both are created idempotently at
+  startup. Cost is estimated only if `LLM_PRICE_TABLE` (or the
+  `LLM_PRICE_*_PER_1M` pair) is set — otherwise `estimatedCostUsd` is `null`
+  rather than a made-up number.
+- `retrievalMode` is returned by `POST /ai/query`, the realtime/REST chat
+  payload (and stored in the AI message metadata, shown in the inbox "AI output"
+  panel), the public demo, and `POST /widget/ask`.
+
+## Offline retrieval eval
+
+`backend/eval/` holds a hermetic goldset benchmark (no network, no DB, no API
+key): 15 receptionist FAQ chunks, 18 questions (15 answerable + 3 distractors),
+a similarity-floor sweep, and a hard gate.
+
+```bash
+cd backend
+npm run eval                # exits non-zero if F1 < 0.70
+EVAL_MIN_F1=0.8 npm run eval
+EVAL_TOP_K=3 npm run eval
+```
+
+The production embedding call is stubbed with a deterministic offline embedder,
+so the run is reproducible in CI. That means the harness measures the retrieval
+**policy** (similarity floor, top-k, vector vs keyword), not the quality of
+`text-embedding-3-small` — use it as a regression guard on the threshold and on
+the keyword degradation path.
+
+Measured on the committed goldset (top-k 5):
+
+| Path | Best threshold | Precision | Recall | F1 | FPR | FNR |
+|------|----------------|-----------|--------|----|-----|-----|
+| vector (production) | 0.35 | 88.2% | 100.0% | **93.8%** | 66.7% | 0.0% |
+| keyword (degraded) | 0.30 | 92.9% | 86.7% | 89.7% | 33.3% | 13.3% |
+
+Both paths clear the 0.70 F1 floor, which is the point: with no
+`OPENAI_API_KEY` the product still answers correctly, just with lower recall on
+paraphrases ("can I move my visit to a different day?" is the keyword path's
+one false negative).
+
 
 ---
 

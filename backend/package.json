@@ -6,7 +6,8 @@
     "build": "nest build",
     "start": "node dist/src/main",
     "dev": "nest start --watch",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "eval": "node eval/benchmark.js"
   },
   "jest": {
     "moduleFileExtensions": [

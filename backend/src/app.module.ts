@@ -18,6 +18,7 @@ import { DepartmentsModule } from './departments/departments.module';
 import { WidgetModule } from './widget/widget.module';
 import { DemoModule } from './demo/demo.module';
 import { AnalyticsController } from './analytics/analytics.controller';
+import { MetricsController } from './metrics/metrics.controller';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -56,7 +57,7 @@ import { HealthController } from './health/health.controller';
     WidgetModule,
     DemoModule,
   ],
-  controllers: [HealthController, AnalyticsController],
+  controllers: [HealthController, AnalyticsController, MetricsController],
   providers: [
     {
       provide: APP_GUARD,

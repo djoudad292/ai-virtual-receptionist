@@ -1,0 +1,174 @@
+{
+  "name": "receptionist-kb-goldset",
+  "version": 1,
+  "description": "Goldset for the AI receptionist knowledge base. 15 FAQ chunks and 15 questions (12 answerable + 3 distractors). Questions paraphrase the source text the way real visitors do, so lexical keyword matching alone cannot reach full recall.",
+  "chunks": [
+    {
+      "id": "faq-hours",
+      "title": "Opening Hours",
+      "text": "Northwind Dental Studio is open Monday to Friday from 9:00am to 5:00pm EST. On Saturdays we open from 10:00am to 2:00pm. We are closed on Sundays and on public holidays. The last appointment of the day starts 30 minutes before closing."
+    },
+    {
+      "id": "faq-location",
+      "title": "Clinic Location and Parking",
+      "text": "The clinic is at 214 Maple Street, Suite 300, Riverton, NY 10019. Visitor parking is free in the garage behind the building; enter from Bell Avenue. Street parking on Maple Street is metered and enforced from 8am to 7pm. The building is fully wheelchair accessible and the elevator is located beside the reception desk."
+    },
+    {
+      "id": "faq-appointment",
+      "title": "Booking an Appointment",
+      "text": "Appointments can be requested online or by phone. A request is not confirmed until a member of the front desk calls you back, usually within one business day. New patients must provide a date of birth and insurance details before the visit is confirmed. Please arrive 15 minutes early to complete paperwork."
+    },
+    {
+      "id": "faq-reschedule",
+      "title": "Rescheduling and Cancellations",
+      "text": "You can reschedule or cancel without charge up to 24 hours before your appointment. Inside 24 hours the cancellation counts as a no-show and a 50 dollar late cancellation fee applies. To reschedule, call the office or reply to your confirmation email and we will send a new slot."
+    },
+    {
+      "id": "faq-insurance",
+      "title": "Insurance and Payment",
+      "text": "We are in network with Delta Dental, Cigna and MetLife. For out of network insurance we provide a written estimate but require payment at the time of service. Copays are collected at check-in. We accept Visa, Mastercard, American Express, FSA and HSA cards as well as cash."
+    },
+    {
+      "id": "faq-services",
+      "title": "Dental Services",
+      "text": "Services include routine cleanings, digital X-rays, fillings, crowns, root canals, tooth extractions, teeth whitening, dental implants and emergency treatment for toothaches. Children are welcome and we see patients from age three."
+    },
+    {
+      "id": "faq-emergency",
+      "title": "Dental Emergencies",
+      "text": "For a dental emergency such as severe pain, swelling, a broken tooth or an injury, call the office immediately and press 1 for the on-call dentist. We reserve same-day slots for emergencies and aim to see you within 24 hours. If your face is swollen and you have difficulty breathing or swallowing, call 911 first."
+    },
+    {
+      "id": "faq-whitening",
+      "title": "Teeth Whitening",
+      "text": "In office whitening takes about 90 minutes and usually lightens teeth by several shades. Take home kits provide custom trays and gel to use for 30 minutes a day for about two weeks. Whitening is not recommended for people under 18, pregnant visitors, or anyone with untreated cavities."
+    },
+    {
+      "id": "faq-child",
+      "title": "First Visit for Children",
+      "text": "A first child visit is a friendly 20 minute orientation with teeth counting and a quick cleaning. Children should come with a parent or guardian who can provide consent. We ask parents to book early morning slots because children tend to be calmer then. A small reward sticker is given at the end of the visit."
+    },
+    {
+      "id": "faq-tech",
+      "title": "Technology at the Clinic",
+      "text": "We use digital X-rays that use 80 percent less radiation than film and produce images on screen in seconds. Intraoral cameras let you see your own teeth on the monitor during the exam. Patient records are stored in a secure encrypted system."
+    },
+    {
+      "id": "faq-privacy",
+      "title": "Patient Privacy and Records",
+      "text": "We follow HIPAA for all patient data. Records are only released to a patient or a legally authorized representative, and photo identification is required before we hand over copies. Treatment histories older than seven years are archived but remain available on request."
+    },
+    {
+      "id": "faq-contact",
+      "title": "Phone and Email",
+      "text": "The office phone is 555 0142 and the fax is 555 0143. Email reception@northwinddental.example and we reply within one business day. Voicemail is monitored between 9:00am and 5:00pm, and messages left after hours are returned the next morning."
+    },
+    {
+      "id": "faq-morning",
+      "title": "First Thing in the Morning",
+      "text": "The very first appointment of the day is reserved for emergency and urgent care patients. If you are in pain and need the earliest possible slot, call at 8:30am and we will try to fit you in before the scheduled patients arrive."
+    },
+    {
+      "id": "faq-cosmetic",
+      "title": "Cosmetic Consultations",
+      "text": "Cosmetic consultations are free and last about 45 minutes. A dentist will take photographs, discuss veneers and whitening, and produce a written treatment plan with costs. Cosmetic work is never urgent and is scheduled outside emergency slots."
+    },
+    {
+      "id": "faq-records",
+      "title": "Transferring Records",
+      "text": "To transfer records to another dentist, send a written request with your full name and date of birth. We need a signed release form, and the receiving practice usually receives the file within five business days. Digital X-rays are sent on a portable drive."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q-hours",
+      "question": "I want to come by on Sunday, are you guys open?",
+      "relevant": ["faq-hours"]
+    },
+    {
+      "id": "q-parking",
+      "question": "Is there somewhere to park when I visit, and is it free?",
+      "relevant": ["faq-location"]
+    },
+    {
+      "id": "q-accessibility",
+      "question": "My mother uses a wheelchair — is the building accessible?",
+      "relevant": ["faq-location"]
+    },
+    {
+      "id": "q-reschedule",
+      "question": "Something came up, can I move my visit to a different day?",
+      "relevant": ["faq-reschedule"]
+    },
+    {
+      "id": "q-fee",
+      "question": "What happens if I cancel less than a day before?",
+      "relevant": ["faq-reschedule"]
+    },
+    {
+      "id": "q-insurance",
+      "question": "Do you take Delta Dental, and how much do I pay up front?",
+      "relevant": ["faq-insurance"]
+    },
+    {
+      "id": "q-hsa",
+      "question": "Can I pay with my HSA card?",
+      "relevant": ["faq-insurance"]
+    },
+    {
+      "id": "q-emergency",
+      "question": "My tooth is killing me, what should I do right now?",
+      "relevant": ["faq-emergency"]
+    },
+    {
+      "id": "q-whitening",
+      "question": "How long does it take to get whiter teeth?",
+      "relevant": ["faq-whitening"]
+    },
+    {
+      "id": "q-child",
+      "question": "How old does my son need to be before his first cleaning?",
+      "relevant": ["faq-child", "faq-services"]
+    },
+    {
+      "id": "xray",
+      "question": "Do you use old film X-rays or digital ones?",
+      "relevant": ["faq-tech"]
+    },
+    {
+      "id": "q-records",
+      "question": "How do I get my file sent to a new dentist?",
+      "relevant": ["faq-records", "faq-privacy"]
+    },
+    {
+      "id": "q-phone",
+      "question": "What number do I call to reach the front desk?",
+      "relevant": ["faq-contact"]
+    },
+    {
+      "id": "q-consult",
+      "question": "Is a cosmetic quote going to cost me anything?",
+      "relevant": ["faq-cosmetic"]
+    },
+    {
+      "id": "q-first-slot",
+      "question": "Can I be the first appointment of the day?",
+      "relevant": ["faq-morning", "faq-hours"]
+    },
+    {
+      "id": "n-lease",
+      "question": "Do you rent office space to other businesses?",
+      "relevant": []
+    },
+    {
+      "id": "n-shipping",
+      "question": "How much does it cost to ship a replacement night guard to Brazil?",
+      "relevant": []
+    },
+    {
+      "id": "n-loan",
+      "question": "Can you recommend a mortgage lender for a practice loan?",
+      "relevant": []
+    }
+  ]
+}

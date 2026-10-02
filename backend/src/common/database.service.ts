@@ -142,6 +142,31 @@ const SCHEMA_STATEMENTS: string[] = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  `CREATE TABLE IF NOT EXISTS llm_usage (
+    id TEXT PRIMARY KEY,
+    company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+    model TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    feature TEXT NOT NULL DEFAULT 'chat',
+    prompt_tokens INT DEFAULT 0,
+    completion_tokens INT DEFAULT 0,
+    total_tokens INT DEFAULT 0,
+    latency_ms INT DEFAULT 0,
+    success BOOLEAN DEFAULT true,
+    error TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_llm_usage_created ON llm_usage(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_llm_usage_company ON llm_usage(company_id)`,
+  `CREATE TABLE IF NOT EXISTS retrieval_metrics (
+    id TEXT PRIMARY KEY,
+    company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+    mode TEXT NOT NULL,
+    results_count INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_retrieval_metrics_created ON retrieval_metrics(created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_retrieval_metrics_company ON retrieval_metrics(company_id)`,
 ];
 
 const HNSW_INDEX_STATEMENT = `CREATE INDEX IF NOT EXISTS knowledge_chunks_embedding_idx ON knowledge_chunks USING hnsw (embedding vector_cosine_ops)`;

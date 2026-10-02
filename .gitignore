@@ -28,3 +28,6 @@ Thumbs.db
 # Runtime
 *.pid
 seeders/
+
+# Eval artifacts (regenerate with `npm run eval` in backend/)
+backend/eval/benchmark-results.json
