@@ -25,12 +25,15 @@ export class AIController {
       lead: result.lead,
       appointment: result.appointment,
       sources: result.sources,
+      // 'vector' | 'keyword-degraded' | 'hash-fallback' — how the answer was grounded.
+      retrievalMode: result.retrievalMode || 'vector',
       steps: result.steps || [],
     };
   }
 
   @Post('search')
   async search(@Req() req: any, @Body('query') query: string) {
+    // Returns { results, mode } so callers can tell real similarity from degraded keyword matching.
     return this.aiService.searchKnowledgeBase(req.user.companyId, query);
   }
 }

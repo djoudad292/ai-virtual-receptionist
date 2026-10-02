@@ -120,6 +120,7 @@ export class RealtimeService {
         source: aiResponse.source,
         lead: aiResponse.lead,
         appointment: aiResponse.appointment,
+        retrievalMode: aiResponse.retrievalMode || 'vector',
         steps: aiResponse.steps || [],
       },
     );
@@ -147,6 +148,7 @@ export class RealtimeService {
         lead: aiResponse.lead,
         appointment: aiResponse.appointment,
         sources: aiResponse.sources || [],
+        retrievalMode: aiResponse.retrievalMode || 'vector',
         steps: aiResponse.steps || [],
       },
       escalated,

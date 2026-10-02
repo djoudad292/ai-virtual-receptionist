@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { AIService } from './ai.service';
+import { EmbeddingsService } from './embeddings.service';
 import { StoreService } from '../common/store.service';
 import { MailService } from '../common/mail.service';
 
@@ -32,6 +33,7 @@ describe('AIService tool-calling loop', () => {
         AIService,
         { provide: StoreService, useValue: store },
         { provide: MailService, useValue: mail },
+        { provide: EmbeddingsService, useValue: new EmbeddingsService() },
       ],
     }).compile();
 
@@ -172,6 +174,7 @@ describe('AIService generateResponse mode parameter', () => {
         AIService,
         { provide: StoreService, useValue: store },
         { provide: MailService, useValue: mail },
+        { provide: EmbeddingsService, useValue: new EmbeddingsService() },
       ],
     }).compile();
 
@@ -299,6 +302,7 @@ describe('AIService.shouldFallbackToGemini', () => {
         AIService,
         { provide: StoreService, useValue: {} },
         { provide: MailService, useValue: {} },
+        { provide: EmbeddingsService, useValue: new EmbeddingsService() },
       ],
     }).compile();
     aiService = moduleRef.get(AIService);
@@ -337,6 +341,7 @@ describe('AIService.buildActions', () => {
         AIService,
         { provide: StoreService, useValue: {} },
         { provide: MailService, useValue: {} },
+        { provide: EmbeddingsService, useValue: new EmbeddingsService() },
       ],
     }).compile();
     aiService = moduleRef.get(AIService);

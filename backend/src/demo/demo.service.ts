@@ -250,6 +250,7 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
       lead: result.lead,
       appointment: result.appointment,
       actions: result.actions ?? [],
+      retrievalMode: result.retrievalMode || 'vector',
       sources: (result.sources || []).map((s: Source) => ({
         chunkText: (s.chunkText || '').slice(0, 400),
         similarity: s.similarity,

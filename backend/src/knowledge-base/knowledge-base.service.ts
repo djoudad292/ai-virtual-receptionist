@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { StoreService } from '../common/store.service';
 import { AIService } from '../ai/ai.service';
+import { isEmbeddingsUnavailableError } from '../ai/embeddings.service';
 
 @Injectable()
 export class KnowledgeBaseService {
+  private readonly logger = new Logger(KnowledgeBaseService.name);
+
   constructor(
     private store: StoreService,
     private aiService: AIService,
@@ -141,9 +144,22 @@ export class KnowledgeBaseService {
     return chunks.length > 0 ? chunks : [content];
   }
 
+  /**
+   * Index chunks. When the embedding provider is unavailable the chunk is still
+   * stored (with a null embedding) so keyword retrieval keeps working — a
+   * degraded index beats no index, and a failed upload helps nobody.
+   */
   private async generateAndStoreEmbeddings(documentId: string, companyId: string, chunks: string[]) {
     for (let i = 0; i < chunks.length; i++) {
-      const embedding = await this.aiService.generateEmbedding(chunks[i]);
+      let embedding: number[] | null = null;
+      try {
+        embedding = await this.aiService.generateEmbedding(chunks[i]);
+      } catch (err) {
+        if (!isEmbeddingsUnavailableError(err)) throw err;
+        this.logger.warn(
+          `Chunk ${i} of document ${documentId} indexed without an embedding (keyword retrieval only): ${err.message}`,
+        );
+      }
       await this.store.insertChunk({
         id: crypto.randomUUID(),
         documentId,

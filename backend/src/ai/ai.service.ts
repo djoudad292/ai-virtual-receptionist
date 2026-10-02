@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { StoreService } from '../common/store.service';
+import { StoreService, StoreChunkHit } from '../common/store.service';
 import { MailService } from '../common/mail.service';
 import {
   RECEPTIONIST_TOOLS,
@@ -12,6 +12,16 @@ import {
   toGeminiContents,
 } from './agent-tools';
 import { extractJson } from './json-envelope';
+import {
+  EmbeddingsService,
+  EmbeddingsUnavailableError,
+  RetrievalMode,
+  allowHashEmbeddings,
+  embeddingModel,
+  isEmbeddingsUnavailableError,
+  isHashVector,
+  markHashVector,
+} from './embeddings.service';
 import type { GraphTraceStep } from './langgraph/trace.types';
 
 const EMBEDDING_DIM = 1536;
@@ -49,6 +59,7 @@ export interface ReceptionistResult {
   lead?: { name?: string | null; email?: string | null; phone?: string | null } | null;
   appointment?: { date?: string | null; time?: string | null; title?: string | null } | null;
   sources: Source[];
+  retrievalMode?: RetrievalMode;
   steps?: GraphTraceStep[];
   actions?: DemoAction[];
 }
@@ -56,7 +67,26 @@ export interface ReceptionistResult {
 export interface AskResult {
   answer: string;
   sources: Source[];
+  retrievalMode: RetrievalMode;
 }
+
+/** A retrieval call site always reports which mode actually served it. */
+export interface RetrievalOutcome<T> {
+  results: T[];
+  mode: RetrievalMode;
+}
+
+/** Similarity threshold for the real vector path. */
+const VECTOR_THRESHOLD = 0.2;
+
+/** Dropped from keyword queries — they match everything and carry no signal. */
+const KEYWORD_STOPWORDS = new Set([
+  'this', 'that', 'with', 'from', 'have', 'what', 'when', 'where', 'which', 'who', 'whom',
+  'your', 'yours', 'ours', 'their', 'there', 'here', 'about', 'would', 'could', 'should',
+  'will', 'can', 'does', 'did', 'was', 'were', 'been', 'being', 'into', 'over', 'under',
+  'then', 'than', 'them', 'they', 'some', 'such', 'only', 'also', 'just', 'like', 'make',
+  'want', 'need', 'please', 'tell', 'give', 'know', 'does', 'much', 'many', 'more', 'very',
+]);
 
 @Injectable()
 export class AIService {
@@ -65,19 +95,46 @@ export class AIService {
   constructor(
     private store: StoreService,
     private mail: MailService,
+    private embeddings: EmbeddingsService,
   ) {}
 
-  // Embeddings: OpenAI with a local hashing fallback
+  /**
+   * Embeddings: OpenAI only, unless the operator explicitly opts into the
+   * deterministic hash fallback. Without a working OpenAI call this throws
+   * `EmbeddingsUnavailableError` so the retrieval layer can degrade to keyword
+   * scoring — it never silently returns a nonsense vector.
+   */
   async generateEmbedding(text: string): Promise<number[]> {
     if (process.env.OPENAI_API_KEY) {
       try {
         const embedding = await this.withTimeout(this.embedOpenAI(text), 15000);
-        if (embedding?.length) return embedding;
+        if (embedding?.length) {
+          this.embeddings.recordVectorSuccess();
+          return embedding;
+        }
+        throw new Error('OpenAI returned an empty embedding');
       } catch (err) {
-        this.logger.warn(`OpenAI embedding failed, using local fallback: ${(err as Error).message}`);
+        const detail = (err as Error).message;
+        if (!allowHashEmbeddings()) {
+          this.embeddings.recordDegraded('provider-error', detail);
+          throw new EmbeddingsUnavailableError(
+            `OpenAI embeddings unavailable (${detail}) and ALLOW_HASH_EMBEDDINGS is not enabled`,
+            'provider-error',
+          );
+        }
+        this.embeddings.recordDegraded('provider-error', detail, true);
+        return markHashVector(this.embedLocally(text));
       }
     }
-    return this.embedLocally(text);
+
+    this.embeddings.recordDegraded('missing-key', 'OPENAI_API_KEY is not set', allowHashEmbeddings());
+    if (!allowHashEmbeddings()) {
+      throw new EmbeddingsUnavailableError(
+        'OPENAI_API_KEY is not set and ALLOW_HASH_EMBEDDINGS is not enabled',
+        'missing-key',
+      );
+    }
+    return markHashVector(this.embedLocally(text));
   }
 
   private async embedOpenAI(text: string): Promise<number[]> {
@@ -88,7 +145,7 @@ export class AIService {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: process.env.EMBEDDING_MODEL || 'text-embedding-3-small',
+        model: embeddingModel(),
         input: text.replace(/\n/g, ' ').slice(0, 8000),
       }),
     });
@@ -129,23 +186,152 @@ export class AIService {
     return vector.map((v) => v / mag);
   }
 
+  /**
+   * Turn a query into a vector, or into an explicit degradation mode.
+   * A hash-fallback vector is never returned here: it is not searchable.
+   */
+  private async embedQuery(query: string): Promise<{ embedding: number[] | null; mode: RetrievalMode }> {
+    try {
+      const embedding = await this.withTimeout(this.generateEmbedding(query), 15000);
+      if (isHashVector(embedding)) {
+        this.embeddings.recordRetrievalDegraded('hash-fallback', 'hash-fallback vectors are not searchable');
+        return { embedding: null, mode: 'hash-fallback' };
+      }
+      return { embedding, mode: 'vector' };
+    } catch (err) {
+      this.embeddings.recordRetrievalDegraded(
+        'keyword-degraded',
+        isEmbeddingsUnavailableError(err) ? err.message : (err as Error).message,
+      );
+      return { embedding: null, mode: 'keyword-degraded' };
+    }
+  }
+
+  /** Similarity floor for the real vector path (cosine). Override with RAG_SIMILARITY_THRESHOLD. */
+  private similarityThreshold(): number {
+    const raw = Number(process.env.RAG_SIMILARITY_THRESHOLD);
+    return Number.isFinite(raw) && raw > 0 ? raw : VECTOR_THRESHOLD;
+  }
+
+  private recordRetrieval(companyId: string | null, mode: RetrievalMode, count: number): void {
+    void this.store
+      .recordRetrievalMetric(companyId, mode, count)
+      .catch((err) => this.logger.warn(`Retrieval metric write failed: ${(err as Error).message}`));
+  }
+
+  /** Published chunks of a company: vector search, or honest keyword scoring when degraded. */
+  private async retrievePublished(
+    companyId: string,
+    query: string,
+    limit: number,
+  ): Promise<RetrievalOutcome<StoreChunkHit>> {
+    const { embedding, mode } = await this.embedQuery(query);
+    let results: StoreChunkHit[];
+    if (embedding) {
+      try {
+        results = await this.store.searchChunksPublished(companyId, embedding, limit, this.similarityThreshold());
+      } catch (err) {
+        if (isHashVector(embedding) || isEmbeddingsUnavailableError(err)) throw err;
+        this.logger.warn(`Vector search failed, using keyword retrieval: ${(err as Error).message}`);
+        this.embeddings.recordRetrievalDegraded('keyword-degraded', (err as Error).message);
+        return this.keywordPublished(companyId, query, limit, 'keyword-degraded');
+      }
+    } else {
+      return this.keywordPublished(companyId, query, limit, mode);
+    }
+    this.recordRetrieval(companyId, mode, results.length);
+    return { results, mode };
+  }
+
+  private async keywordPublished(
+    companyId: string,
+    query: string,
+    limit: number,
+    mode: RetrievalMode,
+  ): Promise<RetrievalOutcome<StoreChunkHit>> {
+    const results = await this.store.searchChunksPublishedKeyword(companyId, this.extractTerms(query), limit);
+    this.recordRetrieval(companyId, mode, results.length);
+    return { results, mode };
+  }
+
+  /** All published chunks (used by the knowledge-base search tool). */
+  private async retrieveAllPublished(
+    companyId: string,
+    query: string,
+    limit: number,
+  ): Promise<RetrievalOutcome<StoreChunkHit>> {
+    const { embedding, mode } = await this.embedQuery(query);
+    if (!embedding) {
+      return this.keywordPublished(companyId, query, limit, mode);
+    }
+    const threshold = this.similarityThreshold();
+    let results: StoreChunkHit[];
+    try {
+      results = (await this.store.searchChunksFull(companyId, embedding, limit)).filter(
+        (r) => r.similarity >= threshold,
+      );
+    } catch (err) {
+      if (isHashVector(embedding) || isEmbeddingsUnavailableError(err)) throw err;
+      this.logger.warn(`Vector search failed, using keyword retrieval: ${(err as Error).message}`);
+      this.embeddings.recordRetrievalDegraded('keyword-degraded', (err as Error).message);
+      return this.keywordPublished(companyId, query, limit, 'keyword-degraded');
+    }
+    this.recordRetrieval(companyId, mode, results.length);
+    return { results, mode };
+  }
+
+  /** Chunks of a single document: vector search, or keyword scoring when degraded. */
+  private async retrieveDocument(
+    companyId: string,
+    documentId: string,
+    query: string,
+    limit: number,
+  ): Promise<RetrievalOutcome<StoreChunkHit>> {
+    const { embedding, mode } = await this.embedQuery(query);
+    let results: StoreChunkHit[];
+    if (embedding) {
+      try {
+        results = await this.store.searchChunksByDocument(documentId, embedding, limit, this.similarityThreshold());
+      } catch (err) {
+        if (isHashVector(embedding) || isEmbeddingsUnavailableError(err)) throw err;
+        this.logger.warn(`Vector search failed, using keyword retrieval: ${(err as Error).message}`);
+        this.embeddings.recordRetrievalDegraded('keyword-degraded', (err as Error).message);
+        return this.keywordDocument(companyId, documentId, query, limit, 'keyword-degraded');
+      }
+    } else {
+      return this.keywordDocument(companyId, documentId, query, limit, mode);
+    }
+    this.recordRetrieval(companyId, mode, results.length);
+    return { results, mode };
+  }
+
+  private async keywordDocument(
+    companyId: string,
+    documentId: string,
+    query: string,
+    limit: number,
+    mode: RetrievalMode,
+  ): Promise<RetrievalOutcome<StoreChunkHit>> {
+    const results = await this.store.searchChunksByDocumentKeyword(documentId, this.extractTerms(query), limit);
+    this.recordRetrieval(companyId, mode, results.length);
+    return { results, mode };
+  }
+
   // Public RAG search for LangGraph agent
   async ragSearchPublic(companyId: string, query: string, limit = 5) {
     return this.ragSearch(companyId, query, limit);
   }
 
   // RAG search
-  async searchKnowledgeBase(companyId: string, query: string, limit = 10) {
+  async searchKnowledgeBase(companyId: string, query: string, limit = 10): Promise<RetrievalOutcome<StoreChunkHit>> {
     const totalChunks = await this.store.countChunks(companyId);
-    if (totalChunks === 0) return [];
+    if (totalChunks === 0) return { results: [], mode: 'vector' };
     try {
-      const embedding = await this.withTimeout(this.generateEmbedding(query), 15000);
-      const results = await this.store.searchChunksFull(companyId, embedding, limit);
-      const threshold = process.env.OPENAI_API_KEY ? 0.2 : 0.08;
-      return results.filter((r) => r.similarity >= threshold);
+      return await this.retrieveAllPublished(companyId, query, limit);
     } catch (err) {
+      // Unexpected failure (e.g. the database is down): no retrieval ran at all.
       this.logger.warn(`KB search failed: ${(err as Error).message}`);
-      return [];
+      return { results: [], mode: 'vector' };
     }
   }
 
@@ -155,15 +341,7 @@ export class AIService {
     if (!doc || doc.companyId !== companyId) {
       throw new Error('Document not found');
     }
-    const embedding = await this.generateEmbedding(question);
-    const threshold = process.env.OPENAI_API_KEY ? 0.25 : 0.1;
-    let results = await this.store.searchChunksByDocument(documentId, embedding, 5, threshold);
-    if (!results.length) {
-      results = await this.store.searchChunksByDocument(documentId, embedding, 5, 0.05);
-    }
-    if (!results.length) {
-      results = await this.store.searchChunksByDocumentKeyword(documentId, this.extractTerms(question), 5);
-    }
+    const { results, mode } = await this.retrieveDocument(companyId, documentId, question, 5);
     const context = results
       .map((r) => r.chunkText)
       .join('\n\n')
@@ -174,35 +352,30 @@ export class AIService {
         answer:
           "I couldn't find relevant information in this document to answer that question. Try rephrasing, or ask about something covered in the document.",
         sources: [],
+        retrievalMode: mode,
       };
     }
 
-    const answer = await this.generateAnswer(question, context, doc.title);
+    const answer = await this.generateAnswer(question, context, doc.title, companyId);
     return {
       answer:
         answer ||
         "I couldn't find relevant information in this document to answer that question. Try rephrasing, or ask about something covered in the document.",
       sources: results.map((r) => ({ chunkText: r.chunkText, similarity: r.similarity })),
+      retrievalMode: mode,
     };
   }
 
   // RAG Q&A across all published documents of a company
   async askCompanyPublished(companyId: string, question: string): Promise<AskResult> {
-    const embedding = await this.generateEmbedding(question);
-    const threshold = process.env.OPENAI_API_KEY ? 0.25 : 0.1;
-    let results = await this.store.searchChunksPublished(companyId, embedding, 6, threshold);
-    if (!results.length) {
-      results = await this.store.searchChunksPublished(companyId, embedding, 6, 0.05);
-    }
-    if (!results.length) {
-      results = await this.store.searchChunksPublishedKeyword(companyId, this.extractTerms(question), 6);
-    }
+    const { results, mode } = await this.retrievePublished(companyId, question, 6);
 
     if (!results.length) {
       return {
         answer:
           "I couldn't find relevant information to answer that question. Try rephrasing, or ask about something covered in the published documents.",
         sources: [],
+        retrievalMode: mode,
       };
     }
 
@@ -211,7 +384,7 @@ export class AIService {
       .join('\n\n')
       .slice(0, 8000);
 
-    const answer = await this.generateAnswer(question, context, 'your documents');
+    const answer = await this.generateAnswer(question, context, 'your documents', companyId);
     return {
       answer:
         answer ||
@@ -221,6 +394,7 @@ export class AIService {
         similarity: r.similarity,
         documentTitle: r.documentTitle,
       })),
+      retrievalMode: mode,
     };
   }
 
@@ -231,7 +405,7 @@ export class AIService {
       throw new Error('Document not found');
     }
     const text = doc.content.slice(0, 12000);
-    const summary = await this.generateSummary(text, doc.title);
+    const summary = await this.generateSummary(text, doc.title, companyId);
     return (
       summary ||
       "I couldn't generate a summary for this document. It may be empty or contain only scanned images."
@@ -240,38 +414,87 @@ export class AIService {
 
   private async ragSearch(companyId: string, query: string, limit = 5) {
     const totalChunks = await this.store.countChunks(companyId);
-    if (totalChunks === 0) return { context: '', results: [], bestSimilarity: 0 };
+    if (totalChunks === 0) return { context: '', results: [], bestSimilarity: 0, mode: 'vector' as RetrievalMode };
+    let outcome: RetrievalOutcome<StoreChunkHit>;
     try {
-      const embedding = await this.withTimeout(this.generateEmbedding(query), 15000);
-      // Local hashing embeddings are weaker than OpenAI's, so relax the threshold when OpenAI is absent.
-      const threshold = process.env.OPENAI_API_KEY ? 0.2 : 0.08;
-      const results = await this.store.searchChunksPublished(companyId, embedding, limit, threshold);
-      const filtered = results.filter((r) => r.similarity >= threshold);
-      const bestSimilarity = filtered.length > 0 ? Number(filtered[0].similarity) : 0;
-      const context = filtered
-        .map((r) => (r.documentTitle ? `[${r.documentTitle}]\n${r.chunkText}` : r.chunkText))
-        .join('\n\n')
-        .slice(0, 6000);
-      const sources: Source[] = filtered.map((r) => ({
-        chunkText: r.chunkText,
-        similarity: r.similarity,
-        documentTitle: r.documentTitle || null,
-      }));
-      return { context, results: sources, bestSimilarity };
+      outcome = await this.retrievePublished(companyId, query, limit);
     } catch (err) {
       this.logger.warn(`RAG search failed: ${(err as Error).message}`);
-      return { context: '', results: [], bestSimilarity: 0 };
+      return { context: '', results: [], bestSimilarity: 0, mode: 'vector' as RetrievalMode };
     }
+    const { results, mode } = outcome;
+    const bestSimilarity = results.length > 0 ? Number(results[0].similarity) : 0;
+    const context = results
+      .map((r) => (r.documentTitle ? `[${r.documentTitle}]\n${r.chunkText}` : r.chunkText))
+      .join('\n\n')
+      .slice(0, 6000);
+    const sources: Source[] = results.map((r) => ({
+      chunkText: r.chunkText,
+      similarity: r.similarity,
+      documentTitle: r.documentTitle || null,
+    }));
+    return { context, results: sources, bestSimilarity, mode };
   }
 
   private shouldFallbackToGemini(msg: string): boolean {
     return /HTTP 402|insufficient credits|payment|billing|HTTP 429|free-models-per-day|rate.?limit/i.test(msg);
   }
 
+  /**
+   * Record one LLM call outcome (tokens + latency). Metrics must never break a
+   * conversation, so failures are logged and swallowed.
+   */
+  private recordLlmUsage(entry: {
+    companyId?: string | null;
+    provider: string;
+    model: string;
+    feature: string;
+    usage?: { promptTokens: number; completionTokens: number; totalTokens: number } | null;
+    latencyMs: number;
+    success: boolean;
+    error?: string | null;
+  }): void {
+    void this.store
+      .recordLlmUsage({
+        companyId: entry.companyId || null,
+        provider: entry.provider,
+        model: entry.model,
+        feature: entry.feature,
+        promptTokens: entry.usage?.promptTokens ?? 0,
+        completionTokens: entry.usage?.completionTokens ?? 0,
+        totalTokens: entry.usage?.totalTokens ?? 0,
+        latencyMs: entry.latencyMs,
+        success: entry.success,
+        error: entry.error || null,
+      })
+      .catch((err) => this.logger.warn(`LLM usage write failed: ${(err as Error).message}`));
+  }
+
+  private openRouterModel(): string {
+    return process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash';
+  }
+
+  private geminiModel(): string {
+    return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  }
+
+  /** Normalize OpenAI-shaped and Gemini-shaped usage payloads. */
+  private normalizeUsage(usage: any): { promptTokens: number; completionTokens: number; totalTokens: number } {
+    const promptTokens = Number(usage?.prompt_tokens ?? usage?.promptTokenCount ?? 0) || 0;
+    const completionTokens = Number(usage?.completion_tokens ?? usage?.candidatesTokenCount ?? 0) || 0;
+    const totalTokens = Number(usage?.total_tokens ?? usage?.totalTokenCount ?? 0) || promptTokens + completionTokens;
+    return { promptTokens, completionTokens, totalTokens };
+  }
+
   // LLM chat (OpenRouter primary, Gemini fallback when credits run out)
-  private async chat(messages: { role: string; content: string }[], maxTokens = 1024): Promise<string | null> {
+  private async chat(
+    messages: { role: string; content: string }[],
+    maxTokens = 1024,
+    feature = 'chat',
+    companyId?: string | null,
+  ): Promise<string | null> {
     const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) return this.chatGemini(messages, maxTokens);
+    if (!apiKey) return this.chatGemini(messages, maxTokens, feature, companyId);
 
     const doFetch = async (): Promise<any> => {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -283,7 +506,7 @@ export class AIService {
           'X-Title': 'AI Virtual Receptionist',
         },
         body: JSON.stringify({
-          model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+          model: this.openRouterModel(),
           messages,
           max_tokens: maxTokens,
           temperature: 0.5,
@@ -299,15 +522,34 @@ export class AIService {
     // Retry transient provider errors (rate limits, 503 "request queue is full", 5xx) with backoff.
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const startedAt = Date.now();
       try {
         const json: any = await this.withTimeout(doFetch(), 30000);
+        this.recordLlmUsage({
+          companyId,
+          provider: 'openrouter',
+          model: this.openRouterModel(),
+          feature,
+          usage: this.normalizeUsage(json?.usage),
+          latencyMs: Date.now() - startedAt,
+          success: true,
+        });
         const content = json.choices?.[0]?.message?.content;
         return typeof content === 'string' && content.trim() ? content : null;
       } catch (err) {
         const msg = (err as Error).message;
         if (this.shouldFallbackToGemini(msg)) {
           this.logger.warn(`OpenRouter quota/billing limit, falling back to Gemini: ${msg}`);
-          return this.chatGemini(messages, maxTokens);
+          this.recordLlmUsage({
+            companyId,
+            provider: 'openrouter',
+            model: this.openRouterModel(),
+            feature,
+            latencyMs: Date.now() - startedAt,
+            success: false,
+            error: msg,
+          });
+          return this.chatGemini(messages, maxTokens, feature, companyId);
         }
         const isRetryable =
           /HTTP 503|HTTP 5\d\d|request queue is full|temporarily overloaded/i.test(msg);
@@ -320,6 +562,15 @@ export class AIService {
           continue;
         }
         this.logger.error(`OpenRouter generation failed: ${msg}`);
+        this.recordLlmUsage({
+          companyId,
+          provider: 'openrouter',
+          model: this.openRouterModel(),
+          feature,
+          latencyMs: Date.now() - startedAt,
+          success: false,
+          error: msg,
+        });
         return null;
       }
     }
@@ -327,7 +578,12 @@ export class AIService {
   }
 
   // Gemini API fallback so the AI keeps working even when OpenRouter runs out of credits.
-  private async chatGemini(messages: { role: string; content: string }[], maxTokens = 1024): Promise<string | null> {
+  private async chatGemini(
+    messages: { role: string; content: string }[],
+    maxTokens = 1024,
+    feature = 'chat',
+    companyId?: string | null,
+  ): Promise<string | null> {
     const key = process.env.GEMINI_API_KEY;
     if (!key) return null;
 
@@ -338,10 +594,11 @@ export class AIService {
         parts: [{ text: m.content }],
       }));
 
+    const startedAt = Date.now();
     try {
       const res = await this.withTimeout(
         fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel()}:generateContent?key=${key}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -357,14 +614,43 @@ export class AIService {
         30000,
       );
       if (!res.ok) {
-        this.logger.error(`Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        const detail = `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
+        this.logger.error(detail);
+        this.recordLlmUsage({
+          companyId,
+          provider: 'gemini',
+          model: this.geminiModel(),
+          feature,
+          latencyMs: Date.now() - startedAt,
+          success: false,
+          error: detail,
+        });
         return null;
       }
       const json: any = await res.json();
+      this.recordLlmUsage({
+        companyId,
+        provider: 'gemini',
+        model: this.geminiModel(),
+        feature,
+        usage: this.normalizeUsage(json?.usageMetadata),
+        latencyMs: Date.now() - startedAt,
+        success: true,
+      });
       const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
       return typeof text === 'string' && text.trim() ? text : null;
     } catch (err) {
-      this.logger.error(`Gemini generation failed: ${(err as Error).message}`);
+      const msg = (err as Error).message;
+      this.logger.error(`Gemini generation failed: ${msg}`);
+      this.recordLlmUsage({
+        companyId,
+        provider: 'gemini',
+        model: this.geminiModel(),
+        feature,
+        latencyMs: Date.now() - startedAt,
+        success: false,
+        error: msg,
+      });
       return null;
     }
   }
@@ -376,22 +662,26 @@ export class AIService {
     messages: OpenAIMessage[],
     tools: ToolDefinition[],
     maxTokens = 1024,
+    feature = 'receptionist_tools',
+    companyId?: string | null,
   ): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (apiKey) {
       try {
-        return await this.chatOpenRouterWithTools(messages, tools, maxTokens);
+        return await this.chatOpenRouterWithTools(messages, tools, maxTokens, feature, companyId);
       } catch (err) {
         this.logger.warn(`OpenRouter tool call failed, using Gemini: ${(err as Error).message}`);
       }
     }
-    return this.chatGeminiWithTools(messages, tools, maxTokens);
+    return this.chatGeminiWithTools(messages, tools, maxTokens, feature, companyId);
   }
 
   private async chatOpenRouterWithTools(
     messages: OpenAIMessage[],
     tools: ToolDefinition[],
     maxTokens = 1024,
+    feature = 'receptionist_tools',
+    companyId?: string | null,
   ): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
@@ -406,7 +696,7 @@ export class AIService {
           'X-Title': 'AI Virtual Receptionist',
         },
         body: JSON.stringify({
-          model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+          model: this.openRouterModel(),
           messages,
           tools: openAiTools(tools),
           max_tokens: maxTokens,
@@ -422,8 +712,18 @@ export class AIService {
 
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const startedAt = Date.now();
       try {
         const json: any = await this.withTimeout(doFetch(), 30000);
+        this.recordLlmUsage({
+          companyId,
+          provider: 'openrouter',
+          model: this.openRouterModel(),
+          feature,
+          usage: this.normalizeUsage(json?.usage),
+          latencyMs: Date.now() - startedAt,
+          success: true,
+        });
         const message = json.choices?.[0]?.message;
         const content = typeof message?.content === 'string' && message.content.trim() ? message.content : null;
         const toolCalls: ToolCall[] = (message?.tool_calls || [])
@@ -438,7 +738,16 @@ export class AIService {
         const msg = (err as Error).message;
         if (this.shouldFallbackToGemini(msg)) {
           this.logger.warn(`OpenRouter quota/billing limit, falling back to Gemini: ${msg}`);
-          return this.chatGeminiWithTools(messages, tools, maxTokens);
+          this.recordLlmUsage({
+            companyId,
+            provider: 'openrouter',
+            model: this.openRouterModel(),
+            feature,
+            latencyMs: Date.now() - startedAt,
+            success: false,
+            error: msg,
+          });
+          return this.chatGeminiWithTools(messages, tools, maxTokens, feature, companyId);
         }
         const isRetryable = /HTTP 503|HTTP 5\d\d|request queue is full|temporarily overloaded/i.test(msg);
         if (isRetryable && attempt < maxRetries) {
@@ -447,6 +756,15 @@ export class AIService {
           await new Promise((r) => setTimeout(r, delay));
           continue;
         }
+        this.recordLlmUsage({
+          companyId,
+          provider: 'openrouter',
+          model: this.openRouterModel(),
+          feature,
+          latencyMs: Date.now() - startedAt,
+          success: false,
+          error: msg,
+        });
         throw err;
       }
     }
@@ -457,14 +775,17 @@ export class AIService {
     messages: OpenAIMessage[],
     tools: ToolDefinition[],
     maxTokens = 1024,
+    feature = 'receptionist_tools',
+    companyId?: string | null,
   ): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
     const key = process.env.GEMINI_API_KEY;
     if (!key) return { content: null, toolCalls: [] };
 
+    const startedAt = Date.now();
     try {
       const res = await this.withTimeout(
         fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-2.5-flash'}:generateContent?key=${key}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel()}:generateContent?key=${key}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -481,10 +802,29 @@ export class AIService {
         30000,
       );
       if (!res.ok) {
-        this.logger.error(`Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+        const detail = `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
+        this.logger.error(detail);
+        this.recordLlmUsage({
+          companyId,
+          provider: 'gemini',
+          model: this.geminiModel(),
+          feature,
+          latencyMs: Date.now() - startedAt,
+          success: false,
+          error: detail,
+        });
         return { content: null, toolCalls: [] };
       }
       const json: any = await res.json();
+      this.recordLlmUsage({
+        companyId,
+        provider: 'gemini',
+        model: this.geminiModel(),
+        feature,
+        usage: this.normalizeUsage(json?.usageMetadata),
+        latencyMs: Date.now() - startedAt,
+        success: true,
+      });
       const parts: any[] = json?.candidates?.[0]?.content?.parts || [];
       const content = parts
         .filter((p) => typeof p?.text === 'string' && p.text.trim())
@@ -499,7 +839,17 @@ export class AIService {
         }));
       return { content, toolCalls };
     } catch (err) {
-      this.logger.error(`Gemini tool generation failed: ${(err as Error).message}`);
+      const msg = (err as Error).message;
+      this.logger.error(`Gemini tool generation failed: ${msg}`);
+      this.recordLlmUsage({
+        companyId,
+        provider: 'gemini',
+        model: this.geminiModel(),
+        feature,
+        latencyMs: Date.now() - startedAt,
+        success: false,
+        error: msg,
+      });
       return { content: null, toolCalls: [] };
     }
   }
@@ -639,6 +989,7 @@ export class AIService {
         lead: lgResult.lead,
         appointment: lgResult.appointment,
         sources: lgResult.sources,
+        retrievalMode: lgResult.retrievalMode || 'vector',
         steps: lgResult.steps,
       };
 
@@ -668,7 +1019,10 @@ export class AIService {
     const departments = await this.store.listDepartments(companyId);
     const departmentNames = departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
 
-    const { context, results: ragResults, bestSimilarity } = await this.ragSearch(companyId, userMessage);
+    const { context, results: ragResults, bestSimilarity, mode: retrievalMode } = await this.ragSearch(
+      companyId,
+      userMessage,
+    );
 
     const systemPrompt = this.buildSystemPrompt(company, departmentNames, context);
 
@@ -690,7 +1044,7 @@ export class AIService {
     const executed: ReceptionistExecuted = {};
     let raw: string | null = null;
     for (let round = 0; round < 3; round++) {
-      const turn = await this.chatWithTools(agentMessages, RECEPTIONIST_TOOLS);
+      const turn = await this.chatWithTools(agentMessages, RECEPTIONIST_TOOLS, 1024, 'receptionist_tools', companyId);
       if (!turn.toolCalls.length) {
         raw = turn.content;
         break;
@@ -769,6 +1123,7 @@ export class AIService {
       lead,
       appointment,
       sources: ragResults,
+      retrievalMode,
     };
 
     if (conversationId) {
@@ -805,22 +1160,27 @@ export class AIService {
       .map((m) => `${m.senderType === 'user' ? 'Visitor' : m.senderType}: ${m.content}`)
       .join('\n');
 
-    const draft = await this.generateAgentReply(query, context, transcript);
+    const draft = await this.generateAgentReply(query, context, transcript, companyId);
     return { reply: draft, sources: results };
   }
 
-  private async generateAgentReply(question: string, context: string, transcript: string): Promise<string | null> {
+  private async generateAgentReply(question: string, context: string, transcript: string, companyId: string): Promise<string | null> {
     const system = `You are an expert customer support agent assistant.
 Draft a reply the human agent can send to the visitor. Answer ONLY from the context below - never invent facts.
 Keep it warm, professional and concise (2-4 sentences), in the same language as the visitor's message.
 If the context does not contain the answer, draft a short reply that asks for clarification or politely offers to check with the team - do not guess.`;
-    return this.chat([
-      { role: 'system', content: system },
-      {
-        role: 'user',
-        content: `Context:\n${context}\n\nConversation so far:\n${transcript}\n\nDraft a reply to the visitor's latest message.`,
-      },
-    ]);
+    return this.chat(
+      [
+        { role: 'system', content: system },
+        {
+          role: 'user',
+          content: `Context:\n${context}\n\nConversation so far:\n${transcript}\n\nDraft a reply to the visitor's latest message.`,
+        },
+      ],
+      1024,
+      'agent_reply_suggestion',
+      companyId,
+    );
   }
 
   // Persist side effects (leads, appointments, routing)
@@ -1079,42 +1439,68 @@ Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACT
     return "I'd be happy to help with that! Could you share a few more details about what you're looking for?";
   }
 
-  private async generateAnswer(question: string, context: string, docTitle: string): Promise<string | null> {
+  private async generateAnswer(
+    question: string,
+    context: string,
+    docTitle: string,
+    companyId: string,
+  ): Promise<string | null> {
     const system = `You are an expert assistant that answers questions strictly from the provided document content.
 Answer accurately and concisely (2-6 sentences), in the same language as the question.
 If the context does not contain the answer, say so and suggest rephrasing. Never invent facts.
 Document: ${docTitle}`;
-    return this.chat([
-      { role: 'system', content: system },
-      { role: 'user', content: `Context:\n${context}\n\nQuestion: ${question}` },
-    ]);
+    return this.chat(
+      [
+        { role: 'system', content: system },
+        { role: 'user', content: `Context:\n${context}\n\nQuestion: ${question}` },
+      ],
+      1024,
+      'kb_document_answer',
+      companyId,
+    );
   }
 
-  private async generateSummary(text: string, docTitle: string): Promise<string | null> {
+  private async generateSummary(text: string, docTitle: string, companyId: string): Promise<string | null> {
     const system = `You are an expert document analyst. Write a clear, structured summary of the given document.
 Cover the main topics, key points, and any important details. Use short bullet points plus a 2-3 sentence overview.`;
-    return this.chat([
-      { role: 'system', content: system },
-      { role: 'user', content: `Document title: ${docTitle}\n\nDocument content:\n${text}` },
-    ]);
+    return this.chat(
+      [
+        { role: 'system', content: system },
+        { role: 'user', content: `Document title: ${docTitle}\n\nDocument content:\n${text}` },
+      ],
+      1024,
+      'kb_document_summary',
+      companyId,
+    );
   }
 
+  /**
+   * Terms for the keyword (ILIKE) fallback. Stopwords are dropped so the score
+   * reflects real term overlap instead of matching "what"/"your" everywhere.
+   */
   private extractTerms(question: string): string[] {
     const words = question
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
-      .filter((w) => w.length > 3);
+      .filter((w) => w.length > 3 && !KEYWORD_STOPWORDS.has(w));
     return [...new Set(words)].slice(0, 6);
   }
 
   private async withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error(`AI request timed out after ${ms}ms`)), ms),
-      ),
-    ]);
+    // Clear the timer on settle so a pending timeout cannot hold a serverless
+    // invocation (or a test run) open.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`AI request timed out after ${ms}ms`)), ms);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 }
 

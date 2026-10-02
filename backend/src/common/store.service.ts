@@ -1,5 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from './database.service';
+import { EmbeddingsUnavailableError, isHashVector } from '../ai/embeddings.service';
+
+/** A retrieved knowledge chunk, whatever path served it. */
+export type StoreChunkHit = {
+  id: string;
+  chunkText: string;
+  documentId?: string;
+  documentTitle?: string | null;
+  /** Cosine similarity on the vector path; matched-term ratio on the keyword path. */
+  similarity: number;
+};
 
 export type StoredUser = {
   id: string;
@@ -548,11 +559,15 @@ export class StoreService {
     );
   }
 
-  async insertChunk(data: { id: string; documentId: string; companyId: string; chunkIndex: number; chunkText: string; embedding: number[] }): Promise<void> {
+  async insertChunk(data: { id: string; documentId: string; companyId: string; chunkIndex: number; chunkText: string; embedding?: number[] | null }): Promise<void> {
+    // A null embedding keeps the chunk keyword-searchable while the embedding
+    // provider is unavailable. Hash vectors are never persisted: they are not
+    // semantic and would poison later similarity searches.
+    const embeddingValue = data.embedding ? JSON.stringify(data.embedding) : null;
     await this.db.execute(
       `INSERT INTO knowledge_chunks (id, document_id, company_id, chunk_index, chunk_text, embedding, created_at)
        VALUES ($1, $2, $3, $4, $5, $6::vector, now())`,
-      [data.id, data.documentId, data.companyId, data.chunkIndex, data.chunkText, JSON.stringify(data.embedding)],
+      [data.id, data.documentId, data.companyId, data.chunkIndex, data.chunkText, embeddingValue],
     );
   }
 
@@ -568,8 +583,23 @@ export class StoreService {
     return row?.count ?? 0;
   }
 
-  async searchChunks(companyId: string, embedding: number[], limit = 5, threshold = 0.35) {
-    return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
+  /**
+   * Hard guard: hash-fallback vectors are not semantic, so they must never
+   * reach a pgvector similarity search. Throws so the caller degrades to
+   * keyword retrieval instead of returning confidently wrong chunks.
+   */
+  private assertSearchableVector(embedding: number[]): void {
+    if (isHashVector(embedding)) {
+      throw new EmbeddingsUnavailableError(
+        'Refusing vector search with a hash-fallback embedding (no semantic signal)',
+        'hash-vector',
+      );
+    }
+  }
+
+  async searchChunks(companyId: string, embedding: number[], limit = 5, threshold = 0.35): Promise<StoreChunkHit[]> {
+    this.assertSearchableVector(embedding);
+    return this.db.query<StoreChunkHit>(
       `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId",
               ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks kc
@@ -582,8 +612,9 @@ export class StoreService {
     );
   }
 
-  async searchChunksByDocument(documentId: string, embedding: number[], limit = 5, threshold = 0.25) {
-    return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
+  async searchChunksByDocument(documentId: string, embedding: number[], limit = 5, threshold = 0.25): Promise<StoreChunkHit[]> {
+    this.assertSearchableVector(embedding);
+    return this.db.query<StoreChunkHit>(
       `SELECT id, chunk_text AS "chunkText", document_id AS "documentId",
               ROUND((1 - (embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks
@@ -595,7 +626,12 @@ export class StoreService {
     );
   }
 
-  async searchChunksByDocumentKeyword(documentId: string, terms: string[], limit = 5) {
+  /**
+   * Keyword fallback scoring: a chunk matches if it contains any query term and
+   * is ranked by how many terms it matched. `similarity` is the matched-term
+   * ratio so callers see an honest score instead of a constant 1.
+   */
+  async searchChunksByDocumentKeyword(documentId: string, terms: string[], limit = 5): Promise<StoreChunkHit[]> {
     if (!terms.length) return [];
     const params: any[] = [documentId];
     const conds = terms.map((_, i) => {
@@ -603,8 +639,9 @@ export class StoreService {
       return `kc.chunk_text ILIKE $${i + 2}`;
     });
     const rank = terms.map((_, i) => `(kc.chunk_text ILIKE $${i + 2})::int`);
-    return this.db.query<{ id: string; chunkText: string; documentId: string; similarity: number }>(
-      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", 1 AS similarity
+    return this.db.query<StoreChunkHit>(
+      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId",
+              ROUND(((${rank.join(' + ')})::numeric / ${terms.length}), 4)::float8 AS similarity
        FROM knowledge_chunks kc
        WHERE kc.document_id = $1 AND (${conds.join(' OR ')})
        ORDER BY (${rank.join(' + ')}) DESC, kc.chunk_index ASC
@@ -613,8 +650,9 @@ export class StoreService {
     );
   }
 
-  async searchChunksPublished(companyId: string, embedding: number[], limit = 6, threshold = 0.25) {
-    return this.db.query<{ id: string; chunkText: string; documentId: string; documentTitle: string; similarity: number }>(
+  async searchChunksPublished(companyId: string, embedding: number[], limit = 6, threshold = 0.25): Promise<StoreChunkHit[]> {
+    this.assertSearchableVector(embedding);
+    return this.db.query<StoreChunkHit>(
       `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", kd.title AS "documentTitle",
               ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks kc
@@ -627,7 +665,7 @@ export class StoreService {
     );
   }
 
-  async searchChunksPublishedKeyword(companyId: string, terms: string[], limit = 6) {
+  async searchChunksPublishedKeyword(companyId: string, terms: string[], limit = 6): Promise<StoreChunkHit[]> {
     if (!terms.length) return [];
     const params: any[] = [companyId];
     const conds = terms.map((_, i) => {
@@ -635,8 +673,9 @@ export class StoreService {
       return `kc.chunk_text ILIKE $${i + 2}`;
     });
     const rank = terms.map((_, i) => `(kc.chunk_text ILIKE $${i + 2})::int`);
-    return this.db.query<{ id: string; chunkText: string; documentId: string; documentTitle: string; similarity: number }>(
-      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", kd.title AS "documentTitle", 1 AS similarity
+    return this.db.query<StoreChunkHit>(
+      `SELECT kc.id, kc.chunk_text AS "chunkText", kc.document_id AS "documentId", kd.title AS "documentTitle",
+              ROUND(((${rank.join(' + ')})::numeric / ${terms.length}), 4)::float8 AS similarity
        FROM knowledge_chunks kc
        JOIN knowledge_documents kd ON kd.id = kc.document_id
        WHERE kc.company_id = $1 AND kd.published = true AND (${conds.join(' OR ')})
@@ -646,8 +685,9 @@ export class StoreService {
     );
   }
 
-  async searchChunksFull(companyId: string, embedding: number[], limit = 10) {
-    return this.db.query<{ id: string; chunkText: string; documentTitle: string; similarity: number }>(
+  async searchChunksFull(companyId: string, embedding: number[], limit = 10): Promise<StoreChunkHit[]> {
+    this.assertSearchableVector(embedding);
+    return this.db.query<StoreChunkHit>(
       `SELECT kc.id, kc.chunk_text AS "chunkText", kd.title AS "documentTitle",
                ROUND((1 - (kc.embedding <=> $2::vector))::numeric, 4)::float8 AS similarity
        FROM knowledge_chunks kc
@@ -657,6 +697,116 @@ export class StoreService {
        LIMIT $3`,
       [companyId, JSON.stringify(embedding), limit],
     );
+  }
+
+  // AI observability
+  async recordLlmUsage(data: {
+    companyId: string | null;
+    provider: string;
+    model: string;
+    feature: string;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    latencyMs: number;
+    success: boolean;
+    error?: string | null;
+  }): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO llm_usage (id, company_id, model, provider, feature, prompt_tokens, completion_tokens, total_tokens, latency_ms, success, error, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())`,
+      [
+        crypto.randomUUID(),
+        data.companyId,
+        data.model,
+        data.provider,
+        data.feature,
+        data.promptTokens,
+        data.completionTokens,
+        data.totalTokens,
+        data.latencyMs,
+        data.success,
+        data.error || null,
+      ],
+    );
+  }
+
+  async recordRetrievalMetric(companyId: string | null, mode: string, resultsCount: number): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO retrieval_metrics (id, company_id, mode, results_count, created_at)
+       VALUES ($1, $2, $3, $4, now())`,
+      [crypto.randomUUID(), companyId, mode, resultsCount],
+    );
+  }
+
+  /** Aggregate AI usage. Scoped to a company when companyId is given. */
+  async aiUsageMetrics(companyId: string | null, sinceHours = 24) {
+    const scope = companyId ? 'AND company_id = $2' : '';
+    const params: any[] = [sinceHours];
+    if (companyId) params.push(companyId);
+
+    const totals = await this.db.queryOne<{
+      requests: number;
+      failures: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      avgLatencyMs: number;
+      p95LatencyMs: number;
+    }>(
+      `SELECT count(*)::int AS requests,
+              count(*) FILTER (WHERE success = false)::int AS failures,
+              COALESCE(sum(prompt_tokens), 0)::int AS "promptTokens",
+              COALESCE(sum(completion_tokens), 0)::int AS "completionTokens",
+              COALESCE(sum(total_tokens), 0)::int AS "totalTokens",
+              COALESCE(ROUND(avg(latency_ms)), 0)::int AS "avgLatencyMs",
+              COALESCE(ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms)), 0)::int AS "p95LatencyMs"
+       FROM llm_usage
+       WHERE created_at > now() - ($1 || ' hours')::interval ${scope}`,
+      params,
+    );
+
+    const byModel = await this.db.query<{
+      model: string;
+      provider: string;
+      requests: number;
+      failures: number;
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      avgLatencyMs: number;
+    }>(
+      `SELECT model, provider,
+              count(*)::int AS requests,
+              count(*) FILTER (WHERE success = false)::int AS failures,
+              COALESCE(sum(prompt_tokens), 0)::int AS "promptTokens",
+              COALESCE(sum(completion_tokens), 0)::int AS "completionTokens",
+              COALESCE(sum(total_tokens), 0)::int AS "totalTokens",
+              COALESCE(ROUND(avg(latency_ms)), 0)::int AS "avgLatencyMs"
+       FROM llm_usage
+       WHERE created_at > now() - ($1 || ' hours')::interval ${scope}
+       GROUP BY model, provider
+       ORDER BY requests DESC`,
+      params,
+    );
+
+    const byFeature = await this.db.query<{ feature: string; requests: number }>(
+      `SELECT feature, count(*)::int AS requests
+       FROM llm_usage
+       WHERE created_at > now() - ($1 || ' hours')::interval ${scope}
+       GROUP BY feature ORDER BY requests DESC`,
+      params,
+    );
+
+    const retrieval = await this.db.query<{ mode: string; calls: number; results: number }>(
+      `SELECT mode, count(*)::int AS calls, COALESCE(sum(results_count), 0)::int AS results
+       FROM retrieval_metrics
+       WHERE created_at > now() - ($1 || ' hours')::interval ${scope}
+       GROUP BY mode`,
+      params,
+    );
+
+    return { totals, byModel, byFeature, retrieval };
   }
 
   // Leads

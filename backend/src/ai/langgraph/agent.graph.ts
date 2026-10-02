@@ -22,6 +22,8 @@ export interface LangGraphResult {
   lead: { name?: string | null; email?: string | null; phone?: string | null } | null;
   appointment: { date?: string | null; time?: string | null; title?: string | null } | null;
   sources: Source[];
+  /** 'vector' | 'keyword-degraded' | 'hash-fallback' */
+  retrievalMode?: 'vector' | 'keyword-degraded' | 'hash-fallback';
   steps: GraphTraceStep[];
 }
 
@@ -101,7 +103,10 @@ export async function runReceptionistGraph(params: {
   const departments = await store.listDepartments(companyId);
   const departmentNames = departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
 
-  const { context, results: ragResults } = await aiService.ragSearchPublic(companyId, userMessage);
+  const { context, results: ragResults, mode: retrievalMode = 'vector' } = await aiService.ragSearchPublic(
+    companyId,
+    userMessage,
+  );
 
   const steps: GraphTraceStep[] = [];
 
@@ -121,6 +126,7 @@ export async function runReceptionistGraph(params: {
       chunksFound: ragResults.length,
       topSimilarity: similarities.length ? Math.round(Math.max(...similarities) * 100) / 100 : 0,
       documentTitles,
+      retrievalMode,
     },
   });
 
@@ -136,8 +142,49 @@ export async function runReceptionistGraph(params: {
     ? primary.bindTools(tools).withFallbacks({ fallbacks: [fallback.bindTools(tools)] })
     : primary.bindTools(tools);
 
+  const llmProvider = process.env.OPENROUTER_API_KEY ? 'openrouter' : 'gemini';
+  const llmModel = process.env.OPENROUTER_API_KEY
+    ? process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash'
+    : process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+  const recordUsage = (response: any, startedAt: number, error?: string) => {
+    try {
+      if (typeof store.recordLlmUsage !== 'function') return;
+      const usage = response?.usage_metadata || response?.response_metadata?.usage;
+      const promptTokens = Number(usage?.input_tokens ?? usage?.prompt_tokens ?? 0) || 0;
+      const completionTokens = Number(usage?.output_tokens ?? usage?.completion_tokens ?? 0) || 0;
+      const totalTokens = Number(usage?.total_tokens ?? 0) || promptTokens + completionTokens;
+      void store
+        .recordLlmUsage({
+          companyId,
+          provider: llmProvider,
+          model: llmModel,
+          feature: 'receptionist_graph',
+          promptTokens,
+          completionTokens,
+          totalTokens,
+          latencyMs: Date.now() - startedAt,
+          success: !error,
+          error: error || null,
+        })
+        .catch(() => {
+          /* metrics must never break a conversation */
+        });
+    } catch {
+      /* metrics must never break a conversation */
+    }
+  };
+
   const agentNode = async (state: typeof StateAnnotation.State) => {
-    const response = await llmWithTools.invoke(state.messages);
+    const startedAt = Date.now();
+    let response: any;
+    try {
+      response = await llmWithTools.invoke(state.messages);
+    } catch (err) {
+      recordUsage(null, startedAt, (err as Error).message);
+      throw err;
+    }
+    recordUsage(response, startedAt);
     const toolCalls = (response as any)?.tool_calls || [];
     steps.push({
       node: 'agent',
@@ -291,6 +338,7 @@ export async function runReceptionistGraph(params: {
     lead,
     appointment,
     sources: ragResults,
+    retrievalMode,
     steps: capTraceSteps(steps),
   };
 }

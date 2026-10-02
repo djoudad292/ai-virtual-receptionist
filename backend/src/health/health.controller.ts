@@ -2,10 +2,13 @@ import { Controller, Get, Header, NotFoundException } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { EmbeddingsService } from '../ai/embeddings.service';
 
 @SkipThrottle({ global: true, strict: true })
 @Controller()
 export class HealthController {
+  constructor(private embeddings: EmbeddingsService) {}
+
   // Embeddable widget: GET /widget.js
   // Literal paths so Vercel's file tracer includes them in the bundle.
   @Get('widget.js')
@@ -19,6 +22,17 @@ export class HealthController {
     if (!file) throw new NotFoundException('widget.js not found');
     return readFileSync(file, 'utf8');
   }
+
+  /**
+   * Public, unauthenticated embeddings health. Answers the only question that
+   * matters when retrieval looks wrong: was this answer served by real semantic
+   * vectors, or by a degraded path?
+   */
+  @Get('health/embeddings')
+  embeddingsHealth() {
+    return this.embeddings.snapshot();
+  }
+
   @Get('api/health')
   async check() {
     const diag: any = {

@@ -37,6 +37,8 @@ interface AiMetadata {
   confidence?: number
   department?: string | null
   source?: 'ai' | 'escalate'
+  /** 'vector' | 'keyword-degraded' | 'hash-fallback' — how the answer was grounded */
+  retrievalMode?: string
   lead?: { name?: string | null; email?: string | null; phone?: string | null } | null
   appointment?: { date?: string | null; time?: string | null; title?: string | null } | null
   steps?: AiStep[]
@@ -88,6 +90,7 @@ function AiOutputPanel({ metadata }: { metadata: AiMetadata }) {
     metadata.steps?.length ||
     metadata.confidence !== undefined ||
     metadata.department ||
+    metadata.retrievalMode ||
     metadata.lead ||
     metadata.appointment
   )
@@ -121,7 +124,7 @@ function AiOutputPanel({ metadata }: { metadata: AiMetadata }) {
         </span>
       </summary>
       <div className="mt-2 space-y-3 text-[11px]">
-        {(metadata.source || metadata.confidence !== undefined || metadata.intent || metadata.department) && (
+        {(metadata.source || metadata.confidence !== undefined || metadata.intent || metadata.department || metadata.retrievalMode) && (
           <div className="space-y-1.5 text-muted-foreground/90">
             <p className="font-medium text-foreground">Result</p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
@@ -157,6 +160,20 @@ function AiOutputPanel({ metadata }: { metadata: AiMetadata }) {
                 <>
                   <dt className="text-muted-foreground">Department</dt>
                   <dd className="font-mono">{metadata.department}</dd>
+                </>
+              )}
+              {metadata.retrievalMode && (
+                <>
+                  <dt className="text-muted-foreground">Retrieval</dt>
+                  <dd>
+                    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium border ${
+                      metadata.retrievalMode === 'vector'
+                        ? 'bg-success/10 text-success border-success/30'
+                        : 'bg-warning/10 text-warning border-warning/30'
+                    }`}>
+                      {metadata.retrievalMode}
+                    </span>
+                  </dd>
                 </>
               )}
             </dl>

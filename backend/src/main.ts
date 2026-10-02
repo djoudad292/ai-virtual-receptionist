@@ -130,7 +130,14 @@ async function seedDemoData(store: StoreService, ai: AIService, logger: Logger) 
           published: true,
           error: null,
         });
-        const embedding = await ai.generateEmbedding(content);
+        // Embed the seed chunk when OpenAI is available; otherwise leave the
+        // embedding null so keyword retrieval still serves the demo company.
+        let embedding: number[] | null = null;
+        try {
+          embedding = await ai.generateEmbedding(content);
+        } catch (e) {
+          logger.warn(`Seed embedding skipped, chunk stays keyword-searchable: ${(e as Error).message}`);
+        }
         await store.insertChunk({
           id: crypto.randomUUID(),
           documentId: doc.id,
@@ -140,7 +147,7 @@ async function seedDemoData(store: StoreService, ai: AIService, logger: Logger) 
           embedding,
         });
       } catch (e) {
-        logger.warn(`Seed embedding skipped: ${(e as Error).message}`);
+        logger.warn(`Seed chunk skipped: ${(e as Error).message}`);
       }
     }
 

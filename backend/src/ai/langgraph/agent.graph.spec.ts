@@ -129,7 +129,12 @@ describe('runReceptionistGraph trace', () => {
     expect(result.steps[0]).toEqual({
       node: 'rag',
       label: 'Retrieved 3 document chunks',
-      detail: { chunksFound: 3, topSimilarity: 0.91, documentTitles: ['Pricing', 'Hours'] },
+      detail: {
+        chunksFound: 3,
+        topSimilarity: 0.91,
+        documentTitles: ['Pricing', 'Hours'],
+        retrievalMode: 'vector',
+      },
     });
     expect(result.steps[result.steps.length - 1]).toEqual({
       node: 'parse',

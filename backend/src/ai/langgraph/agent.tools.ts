@@ -143,13 +143,14 @@ export function createReceptionistTools(
   const searchKnowledgeBase = tool(
     async ({ query }) => {
       try {
-        const results = await aiService.searchKnowledgeBase(companyId, query, 5);
+        const { results, mode } = await aiService.searchKnowledgeBase(companyId, query, 5);
         if (!results.length) {
-          return JSON.stringify({ ok: true, found: false, message: 'No relevant documents found' });
+          return JSON.stringify({ ok: true, found: false, mode, message: 'No relevant documents found' });
         }
         return JSON.stringify({
           ok: true,
           found: true,
+          mode,
           results: results.map((r) => ({
             text: r.chunkText,
             similarity: r.similarity,
