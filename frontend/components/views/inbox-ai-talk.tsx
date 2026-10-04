@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { getSocketUrl, apiFetch, restSendMessage } from '@/lib/api'
+import { getSocketUrl, apiFetch, restSendMessage, probeWsSupport } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import { Mic, MicOff, Plus, X, Loader2 } from 'lucide-react'
 
@@ -228,47 +228,70 @@ export default function InboxAiTalk({ token, companyId, onClose }: InboxAiTalkPr
   }, [companyId, addToast])
 
   useEffect(() => {
-    const s = io(getSocketUrl(), {
-      transports: ['websocket', 'polling'],
-      timeout: 15000,
-      auth: { token: token || '' },
-    })
-    socketRef.current = s
+    let disposed = false
+    let active: Socket | null = null
 
-    s.on('connect', () => {
-      setConnecting(true)
-      createConversation()
-    })
-    s.on('connect_error', () => {
-      // Serverless backend (Vercel) — fall back to REST round trips.
-      if (restModeRef.current) return
-      restModeRef.current = true
-      createConversation()
-    })
-    s.on('newMessage', (msg: TalkMessage) => {
-      if (msg.conversationId && msg.conversationId !== conversationIdRef.current) return
-      appendMessage(msg)
-    })
-    s.on('aiResponse', (data: any) => {
-      if (data?.message && data.message.conversationId && data.message.conversationId !== conversationIdRef.current) return
-      const msg = data?.message
-      if (msg?.senderType === 'ai') {
-        appendMessage(msg)
-        speak(msg.content)
-      } else if (msg) {
-        appendMessage(msg)
+    probeWsSupport().then((supported) => {
+      if (disposed) return
+      // Health says no WebSockets on this host — use REST from the start
+      // instead of earning a connect_error first.
+      if (supported === false) {
+        restModeRef.current = true
+        createConversation()
+        return
       }
-    })
-    s.on('aiThinking', (data: any) => setAiThinking(!!data?.isThinking))
-    s.on('error', (data: any) => {
-      addToast(data?.message || 'Connection error', 'error')
+      const s = io(getSocketUrl(), {
+        transports: ['websocket', 'polling'],
+        timeout: 15000,
+        auth: { token: token || '' },
+      })
+      active = s
+      socketRef.current = s
+
+      s.on('connect', () => {
+        // (Re)connected: socket path is live again.
+        restModeRef.current = false
+        setConnecting(true)
+        createConversation()
+      })
+      s.on('connect_error', () => {
+        // Serverless backend (Vercel) — fall back to REST round trips.
+        if (restModeRef.current) return
+        restModeRef.current = true
+        createConversation()
+      })
+      s.on('disconnect', () => {
+        // Socket died mid-talk: stop emitting into it; REST carries the
+        // conversation until a reconnect flips this back in `connect`.
+        restModeRef.current = true
+      })
+      s.on('newMessage', (msg: TalkMessage) => {
+        if (msg.conversationId && msg.conversationId !== conversationIdRef.current) return
+        appendMessage(msg)
+      })
+      s.on('aiResponse', (data: any) => {
+        if (data?.message && data.message.conversationId && data.message.conversationId !== conversationIdRef.current) return
+        const msg = data?.message
+        if (msg?.senderType === 'ai') {
+          appendMessage(msg)
+          speak(msg.content)
+        } else if (msg) {
+          appendMessage(msg)
+        }
+      })
+      s.on('aiThinking', (data: any) => setAiThinking(!!data?.isThinking))
+      s.on('error', (data: any) => {
+        addToast(data?.message || 'Connection error', 'error')
+      })
     })
 
     return () => {
+      disposed = true
       try { window.speechSynthesis.cancel() } catch {}
       clearSubtitle()
       stopListening()
-      s.disconnect()
+      active?.disconnect()
+      socketRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, addToast])

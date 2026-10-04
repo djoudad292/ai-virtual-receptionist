@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { apiFetch, getSocketUrl, paginate, restSendMessage, restPollMessages } from '@/lib/api'
+import { apiFetch, getSocketUrl, paginate, restSendMessage, restPollMessages, probeWsSupport } from '@/lib/api'
 import { useToast } from '@/components/toast'
 import { Send, Loader2, UserCheck, CheckCircle, ArrowLeft, Sparkles, PhoneCall, Plus } from 'lucide-react'
 import { io, Socket } from 'socket.io-client'
@@ -324,41 +324,64 @@ export default function InboxView() {
   }, [selectedConv, addToast])
 
   useEffect(() => {
-    const s = io(getSocketUrl(), {
-      transports: ['websocket', 'polling'],
-      timeout: 15000,
-      auth: { token: token || '' },
-    })
-    s.on('connect', () => { setSocket(s); socketRef.current = s; setRestMode(false) })
-    s.on('connect_error', () => {
-      // Serverless backends have no WebSockets — switch to REST polling.
-      setRestMode(true)
-    })
-    s.on('newMessage', (msg: Message) => {
-      if (msg.conversationId && msg.conversationId !== selectedConvRef.current) return
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev
-        return [...prev, msg]
+    let disposed = false
+    let active: Socket | null = null
+
+    probeWsSupport().then((supported) => {
+      if (disposed) return
+      // Health says the host has no WebSockets (e.g. Vercel serverless) —
+      // go straight to REST polling instead of earning a connect_error.
+      if (supported === false) {
+        setRestMode(true)
+        return
+      }
+      const s = io(getSocketUrl(), {
+        transports: ['websocket', 'polling'],
+        timeout: 15000,
+        auth: { token: token || '' },
+      })
+      active = s
+      s.on('connect', () => { setSocket(s); socketRef.current = s; setRestMode(false) })
+      s.on('connect_error', () => {
+        // Serverless backends have no WebSockets — switch to REST polling.
+        setRestMode(true)
+      })
+      s.on('disconnect', () => {
+        // The socket died mid-session: stop emitting into it. Polling below
+        // keeps the thread live; a successful reconnect flips this back.
+        setRestMode(true)
+      })
+      s.on('newMessage', (msg: Message) => {
+        if (msg.conversationId && msg.conversationId !== selectedConvRef.current) return
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev
+          return [...prev, msg]
+        })
+      })
+      s.on('aiResponse', (data: { message: Message }) => {
+        if (data?.message) {
+          if (data.message.conversationId && data.message.conversationId !== selectedConvRef.current) return
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === data.message.id)) return prev
+            return [...prev, data.message]
+          })
+        }
+      })
+      s.on('takeover', () => {
+        addToast('Agent has taken over', 'info')
+      })
+      s.on('aiThinking', (data: { isThinking?: boolean }) => {
+        if (data && typeof data.isThinking === 'boolean') {
+          setIsThinking(data.isThinking)
+        }
       })
     })
-    s.on('aiResponse', (data: { message: Message }) => {
-      if (data?.message) {
-        if (data.message.conversationId && data.message.conversationId !== selectedConvRef.current) return
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === data.message.id)) return prev
-          return [...prev, data.message]
-        })
-      }
-    })
-    s.on('takeover', () => {
-      addToast('Agent has taken over', 'info')
-    })
-    s.on('aiThinking', (data: { isThinking?: boolean }) => {
-      if (data && typeof data.isThinking === 'boolean') {
-        setIsThinking(data.isThinking)
-      }
-    })
-    return () => { s.disconnect() }
+
+    return () => {
+      disposed = true
+      active?.disconnect()
+      socketRef.current = null
+    }
   }, [addToast, token])
 
   useEffect(() => {

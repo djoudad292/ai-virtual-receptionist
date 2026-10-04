@@ -103,6 +103,25 @@ export function getSocketUrl() {
   return process.env.NEXT_PUBLIC_WS_URL || API_URL
 }
 
+/**
+ * Whether the backend actually hosts WebSockets, checked before any socket
+ * is attempted: the health payload carries a `ws` flag that is false on
+ * serverless hosts (e.g. Vercel), where a socket would only produce
+ * connect_error noise. `null` means health was unreachable — the caller
+ * should still try the socket and let connect_error degrade to REST.
+ */
+export async function probeWsSupport(): Promise<boolean | null> {
+  try {
+    const data = await apiFetch('/api/health', undefined, { retries: 0 })
+    if (data && typeof (data as { ws?: unknown }).ws === 'boolean') {
+      return (data as { ws: boolean }).ws
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 // ---- REST realtime (used when WebSockets are unavailable, e.g. Vercel) ----
 // POST returns the user message + AI answer in one round trip.
 
