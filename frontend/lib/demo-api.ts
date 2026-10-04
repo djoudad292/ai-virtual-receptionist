@@ -50,7 +50,42 @@ export interface DemoAppointment {
   date?: string
   time?: string
   title?: string
+  startTime?: string
+  endTime?: string
+  status?: string
   [key: string]: unknown
+}
+
+export interface DemoSlot {
+  /** ISO instant the appointment would start at. */
+  start: string
+  /** Wall-clock time at the practice, e.g. `09:30`. */
+  label: string
+}
+
+export interface DemoDay {
+  date: string
+  label: string
+  slots: DemoSlot[]
+}
+
+/** Free slots as the server computed them: practice timezone, no invented times. */
+export interface DemoAvailability {
+  timezone: string
+  slotMinutes: number
+  days: DemoDay[]
+}
+
+export interface DemoBookedAppointment {
+  id: string
+  start: string
+  end: string
+  date: string | null
+  dayLabel: string | null
+  time: string
+  customerName?: string | null
+  title?: string | null
+  status: string
 }
 
 export interface DemoAction {
@@ -145,6 +180,25 @@ export async function getDemoAppointments(sessionId: string): Promise<{ appointm
     `/demo/appointments?sessionId=${encodeURIComponent(sessionId)}`,
     {},
     8000,
+  )
+}
+
+/** List the practice's real free slots (opening hours minus stored bookings). 8s timeout. */
+export async function getDemoAvailability(days = 7): Promise<DemoAvailability> {
+  return demoFetch<DemoAvailability>(`/demo/availability?days=${encodeURIComponent(String(days))}`, {}, 8000)
+}
+
+/** Persist an appointment against a free slot. Throws with the server's message (e.g. 409 when the slot was taken). 10s timeout. */
+export async function bookDemoSlot(input: {
+  sessionId: string
+  start: string
+  name: string
+  title?: string
+}): Promise<{ appointment: DemoBookedAppointment }> {
+  return demoFetch<{ appointment: DemoBookedAppointment }>(
+    '/demo/book',
+    { method: 'POST', body: JSON.stringify(input) },
+    10000,
   )
 }
 

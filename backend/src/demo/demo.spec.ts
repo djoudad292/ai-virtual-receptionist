@@ -1,10 +1,11 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { DemoService, buildIntakeContext } from './demo.service';
 import { DemoController } from './demo.controller';
 import { StoreService } from '../common/store.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { AIService } from '../ai/ai.service';
+import { buildAvailability, wallClockToInstant } from '../common/availability';
 
 const VALID_SESSION = 'test-session-1';
 
@@ -19,6 +20,8 @@ describe('DemoController validation', () => {
       listDocuments: jest.fn().mockResolvedValue({ documents: [] }),
       listAppointments: jest.fn().mockResolvedValue({ appointments: [] }),
       listLeads: jest.fn().mockResolvedValue({ leads: [] }),
+      getAvailability: jest.fn().mockResolvedValue({ timezone: 'Europe/London', slotMinutes: 30, days: [] }),
+      book: jest.fn().mockResolvedValue({ appointment: { id: 'appt-1' } }),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -71,6 +74,73 @@ describe('DemoController validation', () => {
     await controller.leads(undefined);
     expect(service.listLeads).toHaveBeenCalledWith(undefined);
   });
+
+  describe('GET availability', () => {
+    it('rejects a non-numeric days', () => {
+      expect(() => controller.availability('abc')).toThrow(BadRequestException);
+      expect(service.getAvailability).not.toHaveBeenCalled();
+    });
+
+    it('rejects days outside 1..14', () => {
+      expect(() => controller.availability('0')).toThrow(BadRequestException);
+      expect(() => controller.availability('15')).toThrow(BadRequestException);
+      expect(service.getAvailability).not.toHaveBeenCalled();
+    });
+
+    it('rejects a repeated days parameter', () => {
+      expect(() => controller.availability(['1', '2'] as unknown as string)).toThrow(BadRequestException);
+      expect(service.getAvailability).not.toHaveBeenCalled();
+    });
+
+    it('delegates with parsed days, and with undefined when omitted', async () => {
+      await controller.availability('7');
+      expect(service.getAvailability).toHaveBeenCalledWith(7);
+
+      await controller.availability(undefined);
+      expect(service.getAvailability).toHaveBeenCalledWith(undefined);
+    });
+  });
+
+  describe('POST book', () => {
+    const VALID_BODY = {
+      sessionId: VALID_SESSION,
+      start: '2026-10-06T10:00:00.000Z',
+      name: 'Sarah',
+    };
+
+    it('rejects an invalid sessionId', async () => {
+      await expect(controller.book({ ...VALID_BODY, sessionId: 'short' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(service.book).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unparsable start', async () => {
+      await expect(controller.book({ ...VALID_BODY, start: 'tomorrow morning' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(service.book).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty or digit-bearing name', async () => {
+      await expect(controller.book({ ...VALID_BODY, name: '   ' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(controller.book({ ...VALID_BODY, name: 'Sarah123' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(service.book).not.toHaveBeenCalled();
+    });
+
+    it('delegates with an ISO start and a trimmed name', async () => {
+      await controller.book({ ...VALID_BODY, name: '  Sarah  ' });
+      expect(service.book).toHaveBeenCalledWith({
+        sessionId: VALID_SESSION,
+        start: '2026-10-06T10:00:00.000Z',
+        name: 'Sarah',
+      });
+    });
+  });
 });
 
 describe('DemoService', () => {
@@ -114,6 +184,18 @@ describe('DemoService', () => {
         .fn()
         .mockResolvedValue({ items: [], total: 0, page: 1, perPage: 20 }),
       findTemporaryDocuments: jest.fn().mockResolvedValue([]),
+      createAppointment: jest
+        .fn()
+        .mockImplementation((data) =>
+          Promise.resolve({ ...data, createdAt: new Date(), updatedAt: new Date() }),
+        ),
+      updateAppointment: jest
+        .fn()
+        .mockImplementation((id, data) => Promise.resolve({ id, ...data })),
+      updateConversation: jest
+        .fn()
+        .mockImplementation((id, data) => Promise.resolve({ id, ...data })),
+      findAppointmentsBetween: jest.fn().mockResolvedValue([]),
     };
     kbService = {
       createDocument: jest
@@ -476,6 +558,123 @@ describe('DemoService', () => {
     expect(result.documents[0]).toEqual(
       expect.objectContaining({ id: 't1', title: 'Upload 1' }),
     );
+  });
+
+  describe('getAvailability', () => {
+    it('lists free slots in the practice timezone, derived from stored appointments', async () => {
+      const result = await demoService.getAvailability();
+
+      expect(store.findAppointmentsBetween).toHaveBeenCalledTimes(1);
+      expect(result.timezone).toBe('Europe/London');
+      expect(result.slotMinutes).toBe(30);
+      expect(result.days.length).toBeGreaterThan(0);
+      expect(
+        result.days.every((day) => day.slots.every((slot) => /^\d{2}:\d{2}$/.test(slot.label))),
+      ).toBe(true);
+    });
+
+    it('marks every day fully booked when appointments cover the horizon', async () => {
+      const now = Date.now();
+      store.findAppointmentsBetween.mockResolvedValue([
+        {
+          id: 'busy-1',
+          startTime: new Date(now - 3_600_000).toISOString(),
+          endTime: new Date(now + 30 * 86_400_000).toISOString(),
+          status: 'confirmed',
+        },
+      ]);
+
+      const result = await demoService.getAvailability();
+
+      expect(result.days.length).toBeGreaterThan(0);
+      expect(result.days.every((day) => day.slots.length === 0)).toBe(true);
+    });
+  });
+
+  describe('book', () => {
+    // Far-future slots only: a slot near the lead window could lapse mid-test.
+    const openDays = () => buildAvailability({ days: 14, busy: [] }).days;
+    const freeSlot = () => {
+      const day = [...openDays()].reverse().find((d) => d.slots.length > 0)!;
+      return day.slots[day.slots.length - 1];
+    };
+
+    it('persists a confirmed 30-minute appointment and flags the conversation', async () => {
+      const slot = freeSlot();
+
+      const result = await demoService.book({
+        sessionId: VALID_SESSION,
+        start: slot.start,
+        name: 'Sarah',
+      });
+
+      expect(store.createAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          companyId: 'demo-try',
+          conversationId: VALID_SESSION,
+          customerName: 'Sarah',
+          status: 'confirmed',
+          startTime: slot.start,
+        }),
+      );
+      const created = store.createAppointment.mock.calls[0][0];
+      expect(new Date(created.endTime).getTime() - new Date(created.startTime).getTime()).toBe(
+        30 * 60 * 1000,
+      );
+      expect(store.updateConversation).toHaveBeenCalledWith(VALID_SESSION, {
+        metadata: expect.objectContaining({ appointmentBooked: true }),
+      });
+      expect(result.appointment).toEqual(
+        expect.objectContaining({ customerName: 'Sarah', time: slot.label }),
+      );
+    });
+
+    it('refuses a slot outside opening hours without persisting anything', async () => {
+      const openDate = [...openDays()].reverse().find((d) => d.slots.length > 0)!.date;
+      const beforeOpening = wallClockToInstant(openDate, '06:00')!;
+
+      await expect(
+        demoService.book({ sessionId: VALID_SESSION, start: beforeOpening.toISOString(), name: 'Sarah' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(store.createAppointment).not.toHaveBeenCalled();
+    });
+
+    it('refuses a slot that is already taken', async () => {
+      const slot = freeSlot();
+      store.findAppointmentsBetween.mockResolvedValue([
+        {
+          id: 'existing',
+          startTime: slot.start,
+          endTime: new Date(new Date(slot.start).getTime() + 30 * 60_000).toISOString(),
+          status: 'confirmed',
+        },
+      ]);
+
+      await expect(
+        demoService.book({ sessionId: VALID_SESSION, start: slot.start, name: 'Sarah' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(store.createAppointment).not.toHaveBeenCalled();
+    });
+
+    it('cancels its own insert when another booking wins the same slot concurrently', async () => {
+      const slot = freeSlot();
+      store.findAppointmentsBetween
+        .mockResolvedValueOnce([]) // free at check time
+        .mockResolvedValueOnce([
+          {
+            id: 'winner',
+            startTime: slot.start,
+            endTime: new Date(new Date(slot.start).getTime() + 30 * 60_000).toISOString(),
+            status: 'confirmed',
+          },
+        ]); // re-read after insert: somebody else got there first
+
+      await expect(
+        demoService.book({ sessionId: VALID_SESSION, start: slot.start, name: 'Sarah' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(store.createAppointment).toHaveBeenCalledTimes(1);
+      expect(store.updateAppointment).toHaveBeenCalledWith(expect.any(String), { status: 'cancelled' });
+    });
   });
 });
 

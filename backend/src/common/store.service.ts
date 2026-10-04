@@ -905,6 +905,18 @@ export class StoreService {
     return { items: rows, total: countRow?.count ?? 0, page, perPage: limit };
   }
 
+  /** Non-cancelled appointments whose window intersects [fromIso, toIso). */
+  async findAppointmentsBetween(companyId: string, fromIso: string, toIso: string, limit = 200) {
+    return this.db.query<StoredAppointment>(
+      `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", lead_id AS "leadId", customer_name AS "customerName", customer_email AS "customerEmail", title, notes, start_time AS "startTime", end_time AS "endTime", status, created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM appointments
+       WHERE company_id = $1 AND end_time > $2 AND start_time < $3
+         AND lower(status) NOT IN ('cancelled', 'canceled')
+       ORDER BY start_time ASC LIMIT $4`,
+      [companyId, fromIso, toIso, limit],
+    );
+  }
+
   async findAppointmentById(id: string): Promise<StoredAppointment | null> {
     return this.db.queryOne<StoredAppointment>(
       `SELECT id, company_id AS "companyId", conversation_id AS "conversationId", lead_id AS "leadId", customer_name AS "customerName", customer_email AS "customerEmail", title, notes, start_time AS "startTime", end_time AS "endTime", status, created_at AS "createdAt", updated_at AS "updatedAt"

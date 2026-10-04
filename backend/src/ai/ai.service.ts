@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { StoreService, StoreChunkHit } from '../common/store.service';
+import { wallClockToInstant } from '../common/availability';
 import { MailService } from '../common/mail.service';
 import {
   RECEPTIONIST_TOOLS,
@@ -1413,20 +1414,11 @@ Reply with ONLY a single valid JSON object (no markdown, no extra text) in EXACT
   }
 
   private parseAppointmentDateTime(dateStr: string, timeStr: string): Date | null {
-    const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!timeMatch || !dateMatch) return null;
-    const hour = parseInt(timeMatch[1], 10);
-    const minute = parseInt(timeMatch[2], 10);
-    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-    const date = new Date(
-      parseInt(dateMatch[1], 10),
-      parseInt(dateMatch[2], 10) - 1,
-      parseInt(dateMatch[3], 10),
-      hour,
-      minute,
-    );
-    return isNaN(date.getTime()) ? null : date;
+    // A date/time the model says out loud is a wall-clock time at the
+    // practice, so it goes through the same converter the booking grid uses —
+    // otherwise a "10:30" the AI books would land an hour away from a 10:30
+    // offered on the panel.
+    return wallClockToInstant(dateStr, timeStr);
   }
 
   private fallbackReply(context: string): string {

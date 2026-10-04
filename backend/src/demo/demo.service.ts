@@ -1,6 +1,22 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { StoreService } from '../common/store.service';
 import { StoredDemoIntake } from '../common/store.service';
+import {
+  AVAILABILITY_HORIZON_DAYS,
+  SLOT_MINUTES,
+  appointmentsOverlap,
+  buildAvailability,
+  describeInstant,
+  findFreeSlot,
+  hoursSummary,
+} from '../common/availability';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { AIService } from '../ai/ai.service';
 import { Source } from '../ai/ai.service';
@@ -34,7 +50,7 @@ const DEMO_SETTINGS = {
   name: 'Northside Dental',
   phone: '0117 496 0182',
   address: '18 Clifton Park Road, Bristol BS8 2AB',
-  hours: 'Mon-Fri 08:00-18:00, Sat 09:00-13:00',
+  hours: hoursSummary(),
   greeting:
     'Hello — you are chatting with Northside Dental. Ask me about opening hours, treatments, prices, or book an appointment.',
   services: [
@@ -196,9 +212,12 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
     await this.store.purgeExpiredDocuments(DEMO_COMPANY_ID);
   }
 
-  async ask(sessionId: string, question: string) {
-    await this.purgeExpired();
-
+  /**
+   * A demo session *is* its conversation: created on first write, and always
+   * owned by the demo tenant (an id from another tenant is rejected here so
+   * no endpoint can be used to touch someone else's data).
+   */
+  private async ensureDemoConversation(sessionId: string) {
     let conversation = await this.store.findConversationById(sessionId);
     if (!conversation) {
       conversation = await this.store.createConversation({
@@ -212,6 +231,13 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
     if (conversation.companyId !== DEMO_COMPANY_ID) {
       throw new BadRequestException('Invalid session');
     }
+    return conversation;
+  }
+
+  async ask(sessionId: string, question: string) {
+    await this.purgeExpired();
+
+    await this.ensureDemoConversation(sessionId);
 
     await this.store.createMessage({
       id: crypto.randomUUID(),
@@ -256,6 +282,90 @@ export class DemoService implements OnModuleInit, OnModuleDestroy {
         similarity: s.similarity,
         documentTitle: s.documentTitle,
       })),
+    };
+  }
+
+  /**
+   * Free slots the practice can actually honour: opening hours minus the
+   * appointments already stored, in the practice's own timezone. Nothing is
+   * invented here — if a slot is not in this list it is not bookable.
+   */
+  async getAvailability(days?: number) {
+    await this.purgeExpired();
+    const now = new Date();
+    const horizonEnd = new Date(now.getTime() + (AVAILABILITY_HORIZON_DAYS + 7) * 86_400_000);
+    const busy = await this.store.findAppointmentsBetween(
+      DEMO_COMPANY_ID,
+      now.toISOString(),
+      horizonEnd.toISOString(),
+    );
+    return buildAvailability({ now, days, busy });
+  }
+
+  /**
+   * Persist an appointment against a real free slot. Throws 409 when the slot
+   * is outside hours, off-grid, in the past, or already taken — the caller
+   * only ever reports a booking that exists in the database.
+   */
+  async book(input: { sessionId: string; start: string; name: string; title?: string }) {
+    await this.purgeExpired();
+    const conversation = await this.ensureDemoConversation(input.sessionId);
+
+    const now = new Date();
+    const horizonEnd = new Date(now.getTime() + (AVAILABILITY_HORIZON_DAYS + 7) * 86_400_000);
+    const busy = await this.store.findAppointmentsBetween(
+      DEMO_COMPANY_ID,
+      now.toISOString(),
+      horizonEnd.toISOString(),
+    );
+    const slot = findFreeSlot(input.start, { now, days: 14, busy });
+    if (!slot) {
+      throw new ConflictException('That time is no longer available. Please pick another slot.');
+    }
+
+    const start = new Date(slot.start);
+    const created = await this.store.createAppointment({
+      id: crypto.randomUUID(),
+      companyId: DEMO_COMPANY_ID,
+      conversationId: input.sessionId,
+      customerName: input.name,
+      title: input.title || 'Appointment',
+      startTime: start.toISOString(),
+      endTime: new Date(start.getTime() + SLOT_MINUTES * 60_000).toISOString(),
+      status: 'confirmed',
+    });
+
+    // Two sessions can clear findFreeSlot in the same instant — re-read the
+    // window after the insert and undo ours if somebody else won it.
+    const window = await this.store.findAppointmentsBetween(
+      DEMO_COMPANY_ID,
+      created.startTime,
+      created.endTime,
+    );
+    const clash = window.find((a) => a.id !== created.id && appointmentsOverlap(a, created));
+    if (clash) {
+      await this.store.updateAppointment(created.id, { status: 'cancelled' });
+      throw new ConflictException('That time was just taken. Please pick another slot.');
+    }
+
+    // Same flag the AI booking path sets, so a session cannot book twice.
+    await this.store.updateConversation(input.sessionId, {
+      metadata: { ...(conversation.metadata || {}), appointmentBooked: true },
+    });
+
+    const described = describeInstant(created.startTime);
+    return {
+      appointment: {
+        id: created.id,
+        start: created.startTime,
+        end: created.endTime,
+        date: described?.date ?? null,
+        dayLabel: described?.dayLabel ?? null,
+        time: described?.time ?? slot.label,
+        customerName: created.customerName,
+        title: created.title,
+        status: created.status,
+      },
     };
   }
 

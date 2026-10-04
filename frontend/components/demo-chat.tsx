@@ -4,7 +4,18 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { BookOpen, CalendarCheck, Mail, MessageSquare, Mic, MicOff, RotateCcw, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { pickMaleVoice } from '@/lib/demo-voice'
-import { askDemo, getDemoAppointments, getDemoLeads, type DemoAppointment, type DemoAction, type DemoLead } from '@/lib/demo-api'
+import {
+  askDemo,
+  bookDemoSlot,
+  getDemoAppointments,
+  getDemoAvailability,
+  getDemoLeads,
+  type DemoAppointment,
+  type DemoAction,
+  type DemoAvailability,
+  type DemoLead,
+  type DemoSlot,
+} from '@/lib/demo-api'
 
 /**
  * Public demo conversation. No account, no API call: the guest is answered by a
@@ -21,6 +32,7 @@ import {
   GREETING,
   QUICK_REPLIES,
   initialMessages,
+  isInfoRequest,
   reply,
 } from '@/lib/demo-conversation'
 import type { Message, Reply, Step } from '@/lib/demo-conversation'
@@ -48,6 +60,67 @@ function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | null {
   return w.SpeechRecognition || w.webkitSpeechRecognition || null
 }
 
+/** Opens the booking panel when the guest is asking to book (not when they are asking a question about booking). */
+const BOOKING_INTENT = /\b(book|booking|appointment|slot|availability|schedule)\b/i
+
+const WEEKDAY_MATCHERS: { re: RegExp; index: number }[] = [
+  { re: /\b(sunday|sun)\b/, index: 0 },
+  { re: /\b(monday|mon)\b/, index: 1 },
+  { re: /\b(tuesday|tues|tue)\b/, index: 2 },
+  { re: /\b(wednesday|weds|wed)\b/, index: 3 },
+  { re: /\b(thursday|thur|thu)\b/, index: 4 },
+  { re: /\b(friday|fri)\b/, index: 5 },
+  { re: /\b(saturday|sat)\b/, index: 6 },
+]
+
+/** Weekday index of a `YYYY-MM-DD` calendar date. */
+function weekdayOfDate(date: string): number {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+}
+
+/**
+ * Resolve a typed or spoken time against the free slots the server returned.
+ * Returns null when the day is missing, ambiguous, or the time is not free —
+ * the caller then points at the open panel instead of guessing.
+ */
+function matchFreeSlot(text: string, availability: DemoAvailability | null): DemoSlot | null {
+  if (!availability) return null
+  const raw = text.toLowerCase()
+  const timeMatch = raw.match(/\b(\d{1,2}):(\d{2})\b/)
+  if (!timeMatch || Number(timeMatch[2]) > 59) return null
+  const time = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`
+
+  const mentionsToday = /\btoday\b/.test(raw)
+  const mentionsTomorrow = /\btomorrow\b/.test(raw)
+  const mentionedDay = WEEKDAY_MATCHERS.find((m) => m.re.test(raw))?.index ?? null
+  if (mentionedDay === null && !mentionsToday && !mentionsTomorrow) return null
+
+  const matches: DemoSlot[] = []
+  availability.days.forEach((day, i) => {
+    if (mentionsToday && i !== 0) return
+    if (mentionsTomorrow && i !== 1) return
+    if (!mentionsToday && !mentionsTomorrow && weekdayOfDate(day.date) !== mentionedDay) return
+    for (const slot of day.slots) {
+      if (slot.label === time) matches.push(slot)
+    }
+  })
+  return matches.length === 1 ? matches[0] : null
+}
+
+/** How a stored appointment reads to the visitor: practice-local day and time. */
+function formatAppointmentWhen(appt: DemoAppointment, timeZone: string): string {
+  const iso = typeof appt.startTime === 'string' ? appt.startTime : ''
+  if (!iso) {
+    return [appt.date, appt.time].filter(Boolean).join(' · ') || (typeof appt.title === 'string' ? appt.title : '')
+  }
+  const at = new Date(iso)
+  if (isNaN(at.getTime())) return typeof appt.title === 'string' ? appt.title : ''
+  const day = at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone })
+  const time = at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone })
+  return `${day} ${time}`
+}
+
 export function DemoChat({ className }: { className?: string }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState('')
@@ -72,6 +145,14 @@ export function DemoChat({ className }: { className?: string }) {
   const [hasIntake, setHasIntake] = useState(false)
   const [actionCards, setActionCards] = useState<Record<number, DemoAction[]>>({})
   const [leads, setLeads] = useState<DemoLead[]>([])
+
+  const [panel, setPanel] = useState<{ open: boolean; name: string }>({ open: false, name: '' })
+  const [availability, setAvailability] = useState<DemoAvailability | null>(null)
+  const [availState, setAvailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [booking, setBooking] = useState(false)
+  const [bookingError, setBookingError] = useState('')
+  const bookingRef = useRef(false)
+  const nameRef = useRef<HTMLInputElement>(null)
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const speechRef = useRef<{ timers: number[]; spokenId?: string }>({ timers: [] })
@@ -286,11 +367,100 @@ export function DemoChat({ className }: { className?: string }) {
     if (talkActiveRef.current && speechSupported) speak(text)
   }
 
+  // Appends a reception message of its own (used by the booking panel, where
+  // no turn was started by the guest).
+  const appendReception = (text: string, replies?: string[]) => {
+    pendingRef.current = false
+    setPending(false)
+    setMessages((prev) => [...prev, { role: 'reception', text, replies }])
+    if (talkActiveRef.current && speechSupported) speak(text)
+  }
+
+  // Loads the practice's real free slots. Any failure is surfaced as an
+  // unreachable-service message — a slot is never invented client-side.
+  const loadAvailability = useCallback(async () => {
+    setAvailState('loading')
+    setBookingError('')
+    try {
+      const data = await getDemoAvailability(7)
+      setAvailability(data)
+      setAvailState('ready')
+    } catch {
+      setAvailability(null)
+      setAvailState('error')
+    }
+  }, [])
+
+  const openPanel = useCallback(
+    (name?: string) => {
+      setPanel((prev) => ({ open: true, name: name ?? prev.name }))
+      void loadAvailability()
+    },
+    [loadAvailability],
+  )
+
+  const closePanel = () => {
+    setPanel((prev) => ({ ...prev, open: false }))
+    setBookingError('')
+  }
+
+  // Persists the chosen slot. Only a confirmed write produces a confirmation.
+  const bookSlot = async (slot: DemoSlot, opts: { fromChat?: boolean } = {}) => {
+    if (bookingRef.current) return
+    const name = panel.name.trim()
+    if (!name) {
+      setBookingError('Add a name first — the appointment has to be under someone.')
+      nameRef.current?.focus()
+      if (opts.fromChat) finishMessage('I need a name for the appointment. Type it above, then pick a time.')
+      return
+    }
+
+    bookingRef.current = true
+    setBooking(true)
+    setBookingError('')
+    try {
+      const { appointment } = await bookDemoSlot({
+        sessionId: sessionIdRef.current,
+        start: slot.start,
+        name,
+      })
+      const when = [appointment.dayLabel, appointment.time].filter(Boolean).join(' ')
+      const confirmation = `Booked — ${appointment.customerName || name}, ${when} (practice time). It is saved to this session and listed under Appointments below.`
+      setFlow({ step: 'none', name: '', slot: '' })
+      setPanel({ open: false, name: '' })
+      if (opts.fromChat) finishMessage(confirmation, QUICK_REPLIES)
+      else appendReception(confirmation, QUICK_REPLIES)
+      void refreshAppointments()
+    } catch (err) {
+      const reason = err instanceof Error && err.message ? err.message : 'I could not save that time.'
+      setBookingError(`${reason} Pick another time below.`)
+      if (opts.fromChat) finishMessage(`${reason} Pick another time below.`)
+      void loadAvailability() // that slot may be gone — refresh the grid
+    } finally {
+      bookingRef.current = false
+      setBooking(false)
+    }
+  }
+
+  // A typed or spoken time at the `slot` step: match it against the real grid,
+  // never against the scripted state machine (whose "booked" text is a demo
+  // script with nothing saved behind it).
+  const handleSlotText = (text: string) => {
+    const slot = matchFreeSlot(text, availability)
+    if (!slot) {
+      finishMessage(
+        'I could not match that to a free time — pick one below from what the practice actually has open.',
+      )
+      return
+    }
+    void bookSlot(slot, { fromChat: true })
+  }
+
   // Shared entry point for typed, quick-reply and spoken input. The final voice
   // transcript is routed here, so the booking flow is identical for voice and text.
   const send = (text: string) => {
     const clean = text.trim()
-    if (!clean || pendingRef.current) return
+    if (!clean || pendingRef.current || bookingRef.current) return
     // A new turn always interrupts in-flight voice first.
     cancelSpeech()
     cancelListening()
@@ -301,18 +471,34 @@ export function DemoChat({ className }: { className?: string }) {
     setMessages((prev) => [...prev, { role: 'guest', text: clean }, { role: 'reception', text: '' }])
 
     window.setTimeout(async () => {
-      // The multi-turn booking flow is fully local and untouched by the backend.
-      // It stays byte-for-byte identical to the original state machine.
-      if (flowRef.current.step !== 'none') {
+      const step = flowRef.current.step
+
+      // Choosing a time: a side question still goes down the normal path, but
+      // a time is resolved against the live grid instead of the local script.
+      if (step === 'slot' && !isInfoRequest(clean)) {
+        handleSlotText(clean)
+        return
+      }
+
+      // The multi-turn booking flow runs locally. Where it would have named
+      // two invented times, the panel shows the times the server really has.
+      if (step !== 'none') {
         const answer = reply(clean, flowRef.current.step, flowRef.current.name, flowRef.current.slot)
         setFlow((prev) => ({
           step: answer.step ?? prev.step,
           name: answer.name ?? prev.name,
           slot: answer.slot ?? prev.slot,
         }))
-        finishMessage(answer.text, answer.replies)
+        if (answer.step === 'slot' && answer.name) {
+          openPanel(answer.name)
+          finishMessage(`Thanks ${answer.name} — pick a time below from what is actually free.`, answer.replies)
+        } else {
+          finishMessage(answer.text, answer.replies)
+        }
         return
       }
+
+      if (BOOKING_INTENT.test(clean)) openPanel()
 
       // RAG-first: ask the live knowledge base (practice profile + this
       // visitor's uploads). On any failure — network, timeout, empty response —
@@ -343,7 +529,12 @@ export function DemoChat({ className }: { className?: string }) {
           name: answer.name ?? prev.name,
           slot: answer.slot ?? prev.slot,
         }))
-        finishMessage(answer.text, answer.replies)
+        if (answer.step === 'slot' && answer.name) {
+          openPanel(answer.name)
+          finishMessage(`Thanks ${answer.name} — pick a time below from what is actually free.`, answer.replies)
+        } else {
+          finishMessage(answer.text, answer.replies)
+        }
       }
     }, 450)
   }
@@ -410,6 +601,8 @@ export function DemoChat({ className }: { className?: string }) {
     cancelListening()
     setMessages(initialMessages())
     setFlow({ step: 'none', name: '', slot: '' })
+    setPanel({ open: false, name: '' })
+    setBookingError('')
     pendingRef.current = false
     setPending(false)
     setInput('')
@@ -561,6 +754,98 @@ export function DemoChat({ className }: { className?: string }) {
         <div ref={endRef} />
       </div>
 
+      {panel.open && (
+        <div role="group" aria-label="Book an appointment" className="border-t border-border px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-fg">Pick a time — free slots only</p>
+            <button
+              type="button"
+              onClick={closePanel}
+              className="text-xs text-fg-muted transition-colors hover:text-fg"
+            >
+              Close
+            </button>
+          </div>
+
+          <label htmlFor="demo-booking-name" className="sr-only">
+            Name for the appointment
+          </label>
+          <input
+            id="demo-booking-name"
+            ref={nameRef}
+            value={panel.name}
+            onChange={(e) => setPanel((prev) => ({ ...prev, name: e.target.value }))}
+            placeholder="Name for the appointment"
+            maxLength={60}
+            autoComplete="name"
+            className="mb-2 w-full border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-muted focus:border-border-strong focus:outline-none"
+          />
+
+          {availState === 'loading' && (
+            <p className="text-xs text-fg-muted">Loading the practice's free times…</p>
+          )}
+
+          {availState === 'error' && (
+            <p role="alert" className="text-xs text-danger">
+              The booking service is unreachable, so free times cannot be listed right now.{' '}
+              <button type="button" onClick={() => void loadAvailability()} className="underline">
+                Try again
+              </button>
+            </p>
+          )}
+
+          {availState === 'ready' && availability && (
+            <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+              {availability.days.every((day) => day.slots.length === 0) ? (
+                <p className="text-xs text-fg-muted">
+                  No free slots in the next week — call the practice on {DEMO_TENANT.phone}.
+                </p>
+              ) : (
+                availability.days.map((day) => (
+                  <div key={day.date}>
+                    <p className="mb-1 text-[11px] font-medium text-fg-muted">{day.label}</p>
+                    {day.slots.length === 0 ? (
+                      <p className="text-[11px] text-fg-muted">Fully booked</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {day.slots.map((slot) => (
+                          <button
+                            key={slot.start}
+                            type="button"
+                            disabled={booking}
+                            onClick={() => void bookSlot(slot)}
+                            aria-label={`${day.label} at ${slot.label}, practice time`}
+                            className={cn(
+                              'border px-2 py-1 text-xs transition-colors',
+                              booking
+                                ? 'cursor-not-allowed border-border text-fg-muted opacity-60'
+                                : 'border-border text-fg-secondary hover:border-primary hover:text-primary',
+                            )}
+                          >
+                            {slot.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {bookingError && (
+            <p role="alert" className="mt-2 text-xs text-danger">
+              {bookingError}
+            </p>
+          )}
+
+          <p className="mt-2 text-[11px] text-fg-muted">
+            Times are at the practice ({availability?.timezone ?? 'Europe/London'}). Your appointment is saved to
+            this session only.
+          </p>
+        </div>
+      )}
+
       {(appointments.length > 0 || leads.length > 0) && (
         <div className="border-t border-border px-4 py-3">
           <p className="mb-2 text-xs font-semibold text-fg">This session</p>
@@ -570,7 +855,7 @@ export function DemoChat({ className }: { className?: string }) {
               <ul className="space-y-1.5">
                 {appointments.map((appt, i) => {
                   const name = typeof appt.customerName === 'string' ? appt.customerName : ''
-                  const when = [appt.date, appt.time].filter(Boolean).join(' · ') || appt.title || ''
+                  const when = formatAppointmentWhen(appt, availability?.timezone ?? 'Europe/London')
                   return (
                     <li key={i} className="flex items-center gap-2 text-sm text-fg-secondary">
                       <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />

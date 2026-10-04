@@ -80,6 +80,15 @@ function validName(raw: string) {
   return raw.length >= 2 && raw.length <= 40 && new RegExp("^[\\p{L}][\\p{L}\\s'.-]*$", 'u').test(raw)
 }
 
+/**
+ * True when a guest line is a side question rather than an answer to the
+ * current flow step — the same routing reply() applies, exported so the chat
+ * panel can send a question down the normal path instead of the booking flow.
+ */
+export function isInfoRequest(guestText: string): boolean {
+  return looksLikeInfoRequest(normalise(guestText), guestText)
+}
+
 function validSlot(q: string) {
   return /(mon|tue|wed|thu|fri|sat|sun)/.test(q) && /\d/.test(q)
 }

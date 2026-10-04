@@ -16,6 +16,8 @@ import { validateUploadedFile, extractFileText } from '../common/upload-rules';
 const SESSION_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
 const TITLE_VALUES = new Set(['', 'Mr', 'Mrs', 'Ms', 'Dr', 'Prof']);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const NAME_RE = /^\p{L}[\p{L}\p{M}\s'.-]*$/u;
+const MAX_HORIZON_DAYS = 14;
 
 type IntakeBody = {
   sessionId: unknown;
@@ -120,6 +122,61 @@ function validateIntakeBody(body: unknown): {
   return { sessionId: b.sessionId, title, fullName, phone, email, preferredAt, reason };
 }
 
+type BookBody = {
+  sessionId: unknown;
+  start: unknown;
+  name: unknown;
+  title: unknown;
+};
+
+function validateBookBody(body: unknown): {
+  sessionId: string;
+  start: string;
+  name: string;
+  title?: string;
+} {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    throw new BadRequestException('Request body must be an object');
+  }
+  const b = body as BookBody;
+
+  if (typeof b.sessionId !== 'string' || !SESSION_ID_RE.test(b.sessionId)) {
+    throw new BadRequestException('Invalid sessionId');
+  }
+
+  if (typeof b.start !== 'string') {
+    throw new BadRequestException('start must be an ISO datetime string');
+  }
+  const start = new Date(b.start);
+  if (isNaN(start.getTime())) {
+    throw new BadRequestException('start must be a valid ISO datetime');
+  }
+
+  if (typeof b.name !== 'string') {
+    throw new BadRequestException('name must be a string');
+  }
+  const name = b.name.trim();
+  if (!name || name.length > 60 || !NAME_RE.test(name)) {
+    throw new BadRequestException(
+      'name must be a person name (1-60 characters, letters, spaces, hyphens, apostrophes, periods)',
+    );
+  }
+
+  let title: string | undefined;
+  if (b.title !== undefined && b.title !== null) {
+    if (typeof b.title !== 'string') {
+      throw new BadRequestException('title must be a string');
+    }
+    const trimmed = b.title.trim();
+    if (trimmed.length > 80) {
+      throw new BadRequestException('title must be at most 80 characters');
+    }
+    if (trimmed.length > 0) title = trimmed;
+  }
+
+  return { sessionId: b.sessionId, start: start.toISOString(), name, title };
+}
+
 @Controller('/demo')
 export class DemoController {
   constructor(private readonly demoService: DemoService) {}
@@ -136,6 +193,29 @@ export class DemoController {
     }
 
     return this.demoService.ask(sessionId, trimmed);
+  }
+
+  @Get('availability')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  availability(@Query('days') days?: string) {
+    if (days !== undefined && Array.isArray(days)) {
+      throw new BadRequestException('days must be a single value');
+    }
+    let parsed: number | undefined;
+    if (days !== undefined && days !== '') {
+      parsed = Number(days);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_HORIZON_DAYS) {
+        throw new BadRequestException(`days must be an integer between 1 and ${MAX_HORIZON_DAYS}`);
+      }
+    }
+    return this.demoService.getAvailability(parsed);
+  }
+
+  @Post('book')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  async book(@Body() body: unknown) {
+    const data = validateBookBody(body);
+    return this.demoService.book(data);
   }
 
   @Post('intake')
