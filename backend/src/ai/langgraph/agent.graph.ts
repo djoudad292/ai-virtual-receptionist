@@ -2,6 +2,7 @@ import { StateGraph, Annotation, START, END } from '@langchain/langgraph';
 import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { createReceptionistTools } from './agent.tools';
+import { GEMINI_DEFAULT_MODEL, GEMINI_MAX_TOKENS, GEMINI_OPENAI_URL, GEMINI_THINKING_OFF } from '../gemini-endpoint';
 import { extractJson } from '../json-envelope';
 import { GraphTraceStep, MAX_TRACE_STEPS, MAX_TRACE_STRING } from './trace.types';
 import { StoreService } from '../../common/store.service';
@@ -364,13 +365,14 @@ export function createLLM(): { primary: ChatOpenAI; fallback: ChatOpenAI | null 
     });
   } else if (geminiKey) {
     primary = new ChatOpenAI({
-      modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      modelName: GEMINI_DEFAULT_MODEL,
       apiKey: geminiKey,
       configuration: {
-        baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        baseURL: GEMINI_OPENAI_URL,
       },
       temperature: 0.5,
-      maxTokens: 1024,
+      maxTokens: GEMINI_MAX_TOKENS,
+      modelKwargs: GEMINI_THINKING_OFF,
     });
   } else {
     throw new Error('No LLM API key configured (OPENROUTER_API_KEY or GEMINI_API_KEY)');
@@ -379,13 +381,14 @@ export function createLLM(): { primary: ChatOpenAI; fallback: ChatOpenAI | null 
   const fallback: ChatOpenAI | null =
     openrouterKey && geminiKey
       ? new ChatOpenAI({
-          modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+          modelName: GEMINI_DEFAULT_MODEL,
           apiKey: geminiKey,
           configuration: {
-            baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+            baseURL: GEMINI_OPENAI_URL,
           },
           temperature: 0.5,
-          maxTokens: 1024,
+          maxTokens: GEMINI_MAX_TOKENS,
+          modelKwargs: GEMINI_THINKING_OFF,
         })
       : null;
 
