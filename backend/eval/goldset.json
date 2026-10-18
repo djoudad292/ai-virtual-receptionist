@@ -1,7 +1,7 @@
 {
   "name": "receptionist-kb-goldset",
-  "version": 1,
-  "description": "Goldset for the AI receptionist knowledge base. 15 FAQ chunks and 15 questions (12 answerable + 3 distractors). Questions paraphrase the source text the way real visitors do, so lexical keyword matching alone cannot reach full recall.",
+  "version": 2,
+  "description": "Goldset for the AI receptionist knowledge base. 45 FAQ chunks and 232 questions (177 single-chunk, 29 multi-chunk, 26 distractor). Questions are hand-written paraphrases in five registers (colloquial, formal, terse, multi-clause, typo-laden) so that lexical keyword matching alone cannot reach full recall. The distractor set is out-of-domain requests a receptionist must refuse rather than answer. IMPORTANT: these are synthetic queries authored against this corpus, NOT real visitor logs. They measure the retrieval policy, not real-world demand.",
   "chunks": [
     {
       "id": "faq-hours",
@@ -77,98 +77,390 @@
       "id": "faq-records",
       "title": "Transferring Records",
       "text": "To transfer records to another dentist, send a written request with your full name and date of birth. We need a signed release form, and the receiving practice usually receives the file within five business days. Digital X-rays are sent on a portable drive."
+    },
+    {
+      "id": "faq-implants",
+      "title": "Dental Implants",
+      "text": "A dental implant replaces a missing tooth permanently and is made of titanium. The procedure takes two to three appointments over about four months and is performed by a periodontist or an oral surgeon, not by the general dentist. Implants are not covered by routine insurance and are quoted individually after a CT scan."
+    },
+    {
+      "id": "faq-crowns",
+      "title": "Crowns and Bridges",
+      "text": "A crown covers a damaged tooth and is made from porcelain, zirconia or gold. A bridge replaces one or more missing teeth using crowns on the teeth either side. Both usually take two appointments separated by about two weeks while a temporary is fitted. Crowns are rarely covered by insurance."
+    },
+    {
+      "id": "faq-rootcanal",
+      "title": "Root Canal Treatment",
+      "text": "A root canal removes infected tissue from inside a tooth. It is normally completed in one or two visits under local anaesthetic and is not more painful than a filling. A crown is usually placed afterwards to protect the weakened tooth. It is often cheaper than extracting the tooth and replacing it with an implant."
+    },
+    {
+      "id": "faq-wisdom",
+      "title": "Wisdom Teeth",
+      "text": "Wisdom teeth are the third molars at the back of the mouth. We take digital X-rays to assess them. Impacted wisdom teeth that cause pain, infection or damage are removed surgically, usually by referral to an oral surgeon. Healthy wisdom teeth without symptoms are monitored rather than removed."
+    },
+    {
+      "id": "faq-cleaning",
+      "title": "Checkups and Cleanings",
+      "text": "A routine checkup and cleaning takes about 45 minutes and is recommended every six months. It includes a full mouth examination, a scale and polish and, where needed, small X-rays. Children and patients with gum disease are usually seen more often. Checkups are covered by most plans including Delta Dental, Cigna and MetLife."
+    },
+    {
+      "id": "faq-sealants",
+      "title": "Fluoride, Sealants and Cavity Prevention",
+      "text": "Sealants are a thin protective coating applied to the chewing surfaces of back teeth and are recommended for children and teenagers. They usually last three to five years and are quick to apply. Adults at high risk of decay can have them too. Most insurance plans cover sealants on permanent molars."
+    },
+    {
+      "id": "faq-ortho",
+      "title": "Braces and Orthodontics",
+      "text": "Braces, clear aligners and retainers are handled by an orthodontist, not by this practice. We can provide a referral and share your records and X-rays. Treatment typically takes 18 to 24 months and is rarely covered by dental insurance, though a limited amount is often available for under-18s."
+    },
+    {
+      "id": "faq-dentures",
+      "title": "Dentures",
+      "text": "Full and partial dentures replace missing teeth. New dentures require several appointments for impressions, a wax try-in and fitting, then a follow-up adjustment. Adjustments in the first weeks are normal and expected. Patients who have had teeth removed should wait about three months before final dentures."
+    },
+    {
+      "id": "faq-nightguard",
+      "title": "Night Guards and Teeth Grinding",
+      "text": "A night guard is a custom-made splint worn overnight for people who grind their teeth or suffer from bruxism. Symptoms include a sore jaw on waking, flattened tooth edges and headaches. It is made from impressions taken in the office and usually takes two weeks to arrive from the lab."
+    },
+    {
+      "id": "faq-mouthguard",
+      "title": "Sports Mouthguards",
+      "text": "A custom sports mouthguard protects teeth during contact sport and is recommended for anyone playing football, hockey, rugby or boxing. A boil-and-bite guard from a sports shop is less protective than a custom one. Custom guards take about two weeks and cost less than a single repair."
+    },
+    {
+      "id": "faq-periodontal",
+      "title": "Gum Disease and Periodontics",
+      "text": "Gum disease starts as gingivitis, with bleeding when brushing and bad breath, and can progress to periodontitis where the bone supporting the tooth is lost. Treatment is a deep clean below the gum line, usually over two or three appointments. Advanced cases are referred to a periodontist."
+    },
+    {
+      "id": "faq-sensitivity",
+      "title": "Tooth Sensitivity",
+      "text": "Sensitivity to cold, hot or sweet usually means exposed root surface, worn enamel, a crack or gum recession. A desensitising toothpaste containing potassium nitrate usually helps after two weeks of daily use. Persistent sensitivity needs an examination, because it can indicate an underlying crack that will not resolve on its own."
+    },
+    {
+      "id": "faq-hygiene",
+      "title": "Brushing and Flossing",
+      "text": "Brush twice a day for two minutes with a soft brush and fluoride toothpaste. Floss or use interdental brushes once a day; the most common sites for decay are between the teeth and at the gumline. Replace a toothbrush every three months or when the bristles frayed."
+    },
+    {
+      "id": "faq-diet",
+      "title": "Sugar and Diet",
+      "text": "Frequent sugar exposure matters more than total sugar. Snacking on sweet or fizzy drinks between meals keeps the enamel in an acid attack for hours. Drinking water between meals and limiting sweets to mealtimes reduces decay noticeably. Smoking and smokeless tobacco substantially increase gum disease risk."
+    },
+    {
+      "id": "faq-anxiety",
+      "title": "Dental Anxiety",
+      "text": "Dental anxiety is common and the practice is set up for it. Tell the front desk when you book so the appointment can be longer and the first appointment can be a short orientation with no treatment. You can agree a hand signal to pause at any point. Tell us about it and we will adapt."
+    },
+    {
+      "id": "faq-sedation",
+      "title": "Sedation Options",
+      "text": "Local anaesthetic is used for almost all treatment. Nitrous oxide, or laughing gas, is available for anxious patients and wears off within minutes. Oral or IV sedation is offered for longer or surgical appointments and requires you to be escorted home. You must not drive for 24 hours after IV sedation."
+    },
+    {
+      "id": "faq-financing",
+      "title": "Payment Plans and Financing",
+      "text": "Treatment over 500 dollars can be split into monthly instalments using a 12 month interest free plan, subject to a credit check. There is no interest and no early settlement fee. Plans are set up at the front desk and the first payment is taken on the day of treatment."
+    },
+    {
+      "id": "faq-billing",
+      "title": "Billing Disputes and Refunds",
+      "text": "An itemised statement is sent after every visit. If you believe a charge is wrong, contact the office within 30 days with the date of the visit and the item in question. Mistakes in our billing are corrected and refunded in full, usually within two weeks. Card refunds take a further three to five business days to appear."
+    },
+    {
+      "id": "faq-language",
+      "title": "Languages and Interpreters",
+      "text": "English and Spanish are spoken at the practice, and a French speaking interpreter can be arranged with 48 hours notice. Written materials are available in Spanish, French and Chinese. For any other language we will book a professional interpreter at no cost to the patient."
+    },
+    {
+      "id": "faq-walkin",
+      "title": "Walk-ins and Same-Day Requests",
+      "text": "Walk-ins are accepted for genuine emergencies only and are seen at the next available emergency slot, so there may be a wait. Non urgent walk-ins cannot be guaranteed a same day appointment. Calling ahead at 8:30am is the most reliable way to reach the first slot of the day."
+    },
+    {
+      "id": "faq-telehealth",
+      "title": "Virtual Consultations",
+      "text": "A virtual consultation is available for triage, post-operative review and treatment planning. It lasts about 20 minutes over a video call. A virtual visit cannot replace an examination that needs X-rays, and any treatment plan agreed is an estimate until you are seen in person."
+    },
+    {
+      "id": "faq-forms",
+      "title": "Registration and Forms",
+      "text": "New patient forms are sent by email or can be downloaded before the visit. Medical history, allergies and consent forms must be completed before treatment begins. Please bring your insurance card, photo identification and a list of current medications to the first appointment."
+    },
+    {
+      "id": "faq-prescription",
+      "title": "Prescription Refills",
+      "text": "Repeat prescriptions for antibiotics and pain relief can be requested by phone or email and are collected at the front desk. Antibiotics are not issued without an examination. Controlled medications are never repeated by prescription alone and require an appointment."
+    },
+    {
+      "id": "faq-allergy",
+      "title": "Allergies and Medical Alerts",
+      "text": "Tell us about latex, antibiotic, anaesthetic or metal allergies, and about any anticoagulant medication, before treatment. A medical alert in your medical history is enough; a letter from a doctor is not required. We will also note any condition that affects healing or bleeding."
+    },
+    {
+      "id": "faq-pregnancy",
+      "title": "Dental Care During Pregnancy",
+      "text": "Routine checkups, cleanings and most treatments including X-rays are safe during pregnancy. Elective cosmetic work and whitening are deferred until after the birth. Second trimester appointments are the most comfortable. Always tell the dentist if you are pregnant, at any stage, including in the first weeks."
+    },
+    {
+      "id": "faq-secondopinion",
+      "title": "Second Opinions",
+      "text": "You are entitled to a second opinion on any treatment plan. We will release your X-rays and records to the practitioner of your choice, and the consultation itself does not carry a charge. If you are unsure about a plan we recommend, ask for a written explanation before deciding."
+    },
+    {
+      "id": "faq-referral",
+      "title": "Referring Friends and Family",
+      "text": "You can refer a family member for general dentistry without paperwork and they will be seen as a new patient. Referring someone for orthodontics, oral surgery or implants requires a written referral because those services are provided by specialists. Existing patients can be seen as a courtesy walk-in for urgent pain."
+    },
+    {
+      "id": "faq-documents",
+      "title": "Sending Documents and Photos",
+      "text": "You can email a photo of a tooth or a referral letter to reception@northwinddental.example. Photos are useful for triage but never replace an examination. Please do not email payment card numbers or other sensitive personal data."
+    },
+    {
+      "id": "faq-abcess",
+      "title": "Dental Abscess and Infection",
+      "text": "An abscess is a pocket of infection at the root of a tooth and causes constant throbbing pain, bad taste and sometimes facial swelling. It will not resolve on antibiotics alone because the source must be drained or the tooth treated. Treatment is urgent and should not be left longer than a few days."
+    },
+    {
+      "id": "faq-knockedout",
+      "title": "Knocked-Out or Loose Tooth",
+      "text": "A tooth knocked out in an adult can often be saved if it is replanted within about an hour. Hold it by the crown, not the root, rinse it in milk and put it back in the socket, or keep it in milk and come straight in. A tooth loosened by trauma should be seen the same day."
     }
   ],
   "questions": [
-    {
-      "id": "q-hours",
-      "question": "I want to come by on Sunday, are you guys open?",
-      "relevant": ["faq-hours"]
-    },
-    {
-      "id": "q-parking",
-      "question": "Is there somewhere to park when I visit, and is it free?",
-      "relevant": ["faq-location"]
-    },
-    {
-      "id": "q-accessibility",
-      "question": "My mother uses a wheelchair — is the building accessible?",
-      "relevant": ["faq-location"]
-    },
-    {
-      "id": "q-reschedule",
-      "question": "Something came up, can I move my visit to a different day?",
-      "relevant": ["faq-reschedule"]
-    },
-    {
-      "id": "q-fee",
-      "question": "What happens if I cancel less than a day before?",
-      "relevant": ["faq-reschedule"]
-    },
-    {
-      "id": "q-insurance",
-      "question": "Do you take Delta Dental, and how much do I pay up front?",
-      "relevant": ["faq-insurance"]
-    },
-    {
-      "id": "q-hsa",
-      "question": "Can I pay with my HSA card?",
-      "relevant": ["faq-insurance"]
-    },
-    {
-      "id": "q-emergency",
-      "question": "My tooth is killing me, what should I do right now?",
-      "relevant": ["faq-emergency"]
-    },
-    {
-      "id": "q-whitening",
-      "question": "How long does it take to get whiter teeth?",
-      "relevant": ["faq-whitening"]
-    },
-    {
-      "id": "q-child",
-      "question": "How old does my son need to be before his first cleaning?",
-      "relevant": ["faq-child", "faq-services"]
-    },
-    {
-      "id": "xray",
-      "question": "Do you use old film X-rays or digital ones?",
-      "relevant": ["faq-tech"]
-    },
-    {
-      "id": "q-records",
-      "question": "How do I get my file sent to a new dentist?",
-      "relevant": ["faq-records", "faq-privacy"]
-    },
-    {
-      "id": "q-phone",
-      "question": "What number do I call to reach the front desk?",
-      "relevant": ["faq-contact"]
-    },
-    {
-      "id": "q-consult",
-      "question": "Is a cosmetic quote going to cost me anything?",
-      "relevant": ["faq-cosmetic"]
-    },
-    {
-      "id": "q-first-slot",
-      "question": "Can I be the first appointment of the day?",
-      "relevant": ["faq-morning", "faq-hours"]
-    },
-    {
-      "id": "n-lease",
-      "question": "Do you rent office space to other businesses?",
-      "relevant": []
-    },
-    {
-      "id": "n-shipping",
-      "question": "How much does it cost to ship a replacement night guard to Brazil?",
-      "relevant": []
-    },
-    {
-      "id": "n-loan",
-      "question": "Can you recommend a mortgage lender for a practice loan?",
-      "relevant": []
-    }
+    { "id": "q-hours-sat", "question": "Are you open on Saturdays?", "relevant": ["faq-hours"] },
+    { "id": "q-hours-sun", "question": "I want to come by on Sunday, are you guys open?", "relevant": ["faq-hours"] },
+    { "id": "q-hours-late", "question": "What time do you close on weekdays?", "relevant": ["faq-hours"] },
+    { "id": "q-hours-last", "question": "Can I get an appointment right before you close in the afternoon?", "relevant": ["faq-hours"] },
+    { "id": "q-hours-holiday", "question": "Are you shut on public holidays?", "relevant": ["faq-hours"] },
+    { "id": "q-hours-zone", "question": "Which timezone are your opening hours in?", "relevant": ["faq-hours"] },
+    { "id": "q-parking", "question": "Is there somewhere to park when I visit, and is it free?", "relevant": ["faq-location"] },
+    { "id": "q-parking-street", "question": "Is street parking outside free or do I have to pay?", "relevant": ["faq-location"] },
+    { "id": "q-parking-enter", "question": "How do I get into the car park behind the clinic?", "relevant": ["faq-location"] },
+    { "id": "q-address", "question": "What is your street address?", "relevant": ["faq-location"] },
+    { "id": "q-accessibility", "question": "My mother uses a wheelchair — is the building accessible?", "relevant": ["faq-location"] },
+    { "id": "q-elevator", "question": "Is there a lift in the building?", "relevant": ["faq-location"] },
+    { "id": "q-appointment-online", "question": "Can I book an appointment on your website?", "relevant": ["faq-appointment"] },
+    { "id": "q-appointment-confirmed", "question": "Does booking online mean my appointment is confirmed straight away?", "relevant": ["faq-appointment"] },
+    { "id": "q-appointment-newinfo", "question": "What do you need from me before you can confirm my first visit?", "relevant": ["faq-appointment"] },
+    { "id": "q-appointment-early", "question": "How early should I turn up?", "relevant": ["faq-appointment"] },
+    { "id": "q-appointment-long", "question": "How long does it take you to phone me back about a booking request?", "relevant": ["faq-appointment"] },
+    { "id": "q-reschedule", "question": "Something came up, can I move my visit to a different day?", "relevant": ["faq-reschedule"] },
+    { "id": "q-reschedule-fee", "question": "What happens if I cancel less than a day before?", "relevant": ["faq-reschedule"] },
+    { "id": "q-cancel-how", "question": "How do I cancel my appointment?", "relevant": ["faq-reschedule"] },
+    { "id": "q-noshow", "question": "Will I be charged if I miss my appointment without telling you?", "relevant": ["faq-reschedule"] },
+    { "id": "q-cancel-free", "question": "Is it free to cancel if I give you enough notice?", "relevant": ["faq-reschedule"] },
+    { "id": "q-insurance-delta", "question": "Do you take Delta Dental, and how much do I pay up front?", "relevant": ["faq-insurance"] },
+    { "id": "q-insurance-outnet", "question": "I have insurance from a company you don't list. Will you still see me?", "relevant": ["faq-insurance"] },
+    { "id": "q-insurance-cigna", "question": "Are you in network with Cigna?", "relevant": ["faq-insurance"] },
+    { "id": "q-insurance-metlife", "question": "Is MetLife one of your accepted insurers?", "relevant": ["faq-insurance"] },
+    { "id": "q-pay-hsa", "question": "Can I pay with my HSA card?", "relevant": ["faq-insurance"] },
+    { "id": "q-pay-cash", "question": "Do you take cash?", "relevant": ["faq-insurance"] },
+    { "id": "q-pay-amex", "question": "Can I pay with American Express?", "relevant": ["faq-insurance"] },
+    { "id": "q-pay-copay", "question": "When do I pay my copay?", "relevant": ["faq-insurance"] },
+    { "id": "q-pay-amex-short", "question": "amex accepted?", "relevant": ["faq-insurance"] },
+    { "id": "q-services-list", "question": "What kinds of dental work do you do?", "relevant": ["faq-services"] },
+    { "id": "q-services-age", "question": "How old does a child have to be before you'll see them?", "relevant": ["faq-services"] },
+    { "id": "q-services-implants", "question": "Do you place dental implants?", "relevant": ["faq-services"] },
+    { "id": "q-emergency-pain", "question": "My tooth is killing me, what should I do right now?", "relevant": ["faq-emergency"] },
+    { "id": "q-emergency-broken", "question": "I broke a tooth this morning, do you have space today?", "relevant": ["faq-emergency"] },
+    { "id": "q-emergency-swelling", "question": "My face is swollen and it hurts to swallow. Is this an emergency?", "relevant": ["faq-emergency"] },
+    { "id": "q-emergency-oncall", "question": "Is there a dentist on call if the office is closed?", "relevant": ["faq-emergency"] },
+    { "id": "q-emergency-soon", "question": "How quickly can you see someone with severe pain?", "relevant": ["faq-emergency"] },
+    { "id": "q-emergency-911", "question": "I can't breathe properly and my face is puffy — should I call an ambulance?", "relevant": ["faq-emergency"] },
+    { "id": "q-whitening-time", "question": "How long does it take to get whiter teeth?", "relevant": ["faq-whitening"] },
+    { "id": "q-whitening-home", "question": "Can I whiten my teeth at home instead of in the chair?", "relevant": ["faq-whitening"] },
+    { "id": "q-whitening-safe", "question": "Is whitening safe if I have untreated cavities?", "relevant": ["faq-whitening"] },
+    { "id": "q-whitening-age", "question": "Can I whiten my teeth if I'm only 17?", "relevant": ["faq-whitening"] },
+    { "id": "q-whitening-shades", "question": "How many shades whiter will I get?", "relevant": ["faq-whitening"] },
+    { "id": "q-whitening-pregnant", "question": "I'm pregnant — can I have my teeth whitened?", "relevant": ["faq-whitening"] },
+    { "id": "q-child-age", "question": "How old does my son need to be before his first cleaning?", "relevant": ["faq-child", "faq-services"] },
+    { "id": "q-child-first", "question": "What happens at a child's very first dental appointment?", "relevant": ["faq-child"] },
+    { "id": "q-child-consent", "question": "Do I have to be there for my kid's appointment?", "relevant": ["faq-child"] },
+    { "id": "q-child-time", "question": "Is there a better time of day for a young child to come?", "relevant": ["faq-child"] },
+    { "id": "q-child-sticker", "question": "My four year old is nervous — do you do anything special for her?", "relevant": ["faq-child"] },
+    { "id": "q-tech-film", "question": "Do you use old film X-rays or digital ones?", "relevant": ["faq-tech"] },
+    { "id": "q-tech-radiation", "question": "How much less radiation is a digital X-ray than the old film?", "relevant": ["faq-tech"] },
+    { "id": "q-tech-camera", "question": "Can I see my own teeth on screen during the exam?", "relevant": ["faq-tech"] },
+    { "id": "q-tech-records", "question": "Is my patient data stored securely?", "relevant": ["faq-tech", "faq-privacy"] },
+    { "id": "q-tech-seconds", "question": "How long does it take for the X-ray image to come up?", "relevant": ["faq-tech"] },
+    { "id": "q-privacy-hipaa", "question": "Are you HIPAA compliant?", "relevant": ["faq-privacy"] },
+    { "id": "q-privacy-id", "question": "What identification do you need before you give me my file?", "relevant": ["faq-privacy"] },
+    { "id": "q-privacy-spouse", "question": "Can my husband get my dental records without me there?", "relevant": ["faq-privacy"] },
+    { "id": "q-privacy-old", "question": "Can you still get hold of my treatment history from years ago?", "relevant": ["faq-privacy"] },
+    { "id": "q-contact-phone", "question": "What number do I call to reach the front desk?", "relevant": ["faq-contact"] },
+    { "id": "q-contact-email", "question": "What is your email address?", "relevant": ["faq-contact"] },
+    { "id": "q-contact-voicemail", "question": "If I leave a voicemail after hours, when will someone call me back?", "relevant": ["faq-contact"] },
+    { "id": "q-contact-fax", "question": "What's your fax number?", "relevant": ["faq-contact"] },
+    { "id": "q-morning-first", "question": "Can I be the first appointment of the day?", "relevant": ["faq-morning"] },
+    { "id": "q-morning-urgent", "question": "I need the earliest possible slot because I'm in pain. What time should I call?", "relevant": ["faq-morning"] },
+    { "id": "q-morning-reserved", "question": "What is the earliest appointment you offer?", "relevant": ["faq-morning"] },
+    { "id": "q-cosmetic-free", "question": "Is a cosmetic quote going to cost me anything?", "relevant": ["faq-cosmetic"] },
+    { "id": "q-cosmetic-plan", "question": "Do I get a written plan after a cosmetic consultation?", "relevant": ["faq-cosmetic"] },
+    { "id": "q-cosmetic-length", "question": "How long does a cosmetic consultation take?", "relevant": ["faq-cosmetic"] },
+    { "id": "q-cosmetic-urgent", "question": "Can I get veneers done as an emergency?", "relevant": ["faq-cosmetic"] },
+    { "id": "q-cosmetic-veneers", "question": "Do you do veneers?", "relevant": ["faq-cosmetic"] },
+    { "id": "q-records-transfer", "question": "How do I get my file sent to a new dentist?", "relevant": ["faq-records", "faq-privacy"] },
+    { "id": "q-records-release", "question": "Do you need a signed release to send my records anywhere?", "relevant": ["faq-records"] },
+    { "id": "q-records-time", "question": "How long does the other practice take to receive my records?", "relevant": ["faq-records"] },
+    { "id": "q-records-drive", "question": "How do you get the X-rays to the new dentist?", "relevant": ["faq-records"] },
+    { "id": "q-implants-replace", "question": "What does a dental implant actually do?", "relevant": ["faq-implants"] },
+    { "id": "q-implants-time", "question": "How long does getting an implant take from start to finish?", "relevant": ["faq-implants"] },
+    { "id": "q-implants-insurance", "question": "Will my insurance pay for an implant?", "relevant": ["faq-implants"] },
+    { "id": "q-implants-scan", "question": "Do I need a scan before you can price an implant?", "relevant": ["faq-implants"] },
+    { "id": "q-implants-who", "question": "Who actually performs the implant surgery?", "relevant": ["faq-implants"] },
+    { "id": "q-crowns-cover", "question": "Why would I need a crown on my tooth?", "relevant": ["faq-crowns"] },
+    { "id": "q-crowns-bridge", "question": "What's the difference between a bridge and an implant?", "relevant": ["faq-crowns", "faq-implants"] },
+    { "id": "q-crowns-visits", "question": "How many appointments do I need for a crown?", "relevant": ["faq-crowns"] },
+    { "id": "q-crowns-insurance", "question": "Does insurance cover crowns?", "relevant": ["faq-crowns"] },
+    { "id": "q-rootcanal-pain", "question": "Is a root canal more painful than a filling?", "relevant": ["faq-rootcanal"] },
+    { "id": "q-rootcanal-visits", "question": "How many visits does a root canal take?", "relevant": ["faq-rootcanal"] },
+    { "id": "q-rootcanal-crown", "question": "Do I need a crown after a root canal?", "relevant": ["faq-rootcanal", "faq-crowns"] },
+    { "id": "q-rootcanal-cost", "question": "Is a root canal cheaper than losing the tooth?", "relevant": ["faq-rootcanal"] },
+    { "id": "q-wisdom-pain", "question": "My wisdom tooth hurts. Should it come out?", "relevant": ["faq-wisdom"] },
+    { "id": "q-wisdom-healthy", "question": "My wisdom teeth don't hurt. Should I have them out anyway?", "relevant": ["faq-wisdom"] },
+    { "id": "q-wisdom-referral", "question": "Do you remove wisdom teeth yourselves?", "relevant": ["faq-wisdom"] },
+    { "id": "q-wisdom-xray", "question": "How do you decide if my wisdom teeth need removing?", "relevant": ["faq-wisdom"] },
+    { "id": "q-cleaning-frequency", "question": "How often should I come in for a cleaning?", "relevant": ["faq-cleaning"] },
+    { "id": "q-cleaning-length", "question": "How long does a checkup and clean take?", "relevant": ["faq-cleaning"] },
+    { "id": "q-cleaning-included", "question": "What's actually included in a routine clean?", "relevant": ["faq-cleaning"] },
+    { "id": "q-cleaning-covered", "question": "Is a checkup covered by my plan?", "relevant": ["faq-cleaning", "faq-insurance"] },
+    { "id": "q-sealants-what", "question": "What are sealants and do they really work?", "relevant": ["faq-sealants"] },
+    { "id": "q-sealants-age", "question": "My teenager keeps getting cavities. Would sealants help?", "relevant": ["faq-sealants"] },
+    { "id": "q-sealants-last", "question": "How long do sealants last?", "relevant": ["faq-sealants"] },
+    { "id": "q-sealants-adult", "question": "I'm an adult. Is it worth getting sealants?", "relevant": ["faq-sealants"] },
+    { "id": "q-ortho-braces", "question": "Can I get braces from you?", "relevant": ["faq-ortho"] },
+    { "id": "q-ortho-duration", "question": "How long will I need to wear braces?", "relevant": ["faq-ortho"] },
+    { "id": "q-ortho-insurance", "question": "Does dental insurance pay for orthodontics?", "relevant": ["faq-ortho"] },
+    { "id": "q-ortho-referral", "question": "Can you refer me to an orthodontist?", "relevant": ["faq-ortho"] },
+    { "id": "q-dentures-full", "question": "How does getting full dentures work?", "relevant": ["faq-dentures"] },
+    { "id": "q-dentures-adjust", "question": "My new dentures don't fit properly — is that normal?", "relevant": ["faq-dentures"] },
+    { "id": "q-dentures-wait", "question": "How long after losing my teeth can I get dentures?", "relevant": ["faq-dentures"] },
+    { "id": "q-nightguard-grinding", "question": "I grind my teeth at night. Can you make something for that?", "relevant": ["faq-nightguard"] },
+    { "id": "q-nightguard-jaw", "question": "I wake up with a sore jaw and headaches. What's going on?", "relevant": ["faq-nightguard"] },
+    { "id": "q-nightguard-time", "question": "How long does a night guard take to arrive?", "relevant": ["faq-nightguard"] },
+    { "id": "q-mouthguard-sport", "question": "I play contact sport. Should I get a custom mouthguard?", "relevant": ["faq-mouthguard"] },
+    { "id": "q-mouthguard-boil", "question": "Is the boil-and-bite mouthguard from a sports shop good enough?", "relevant": ["faq-mouthguard"] },
+    { "id": "q-mouthguard-cost", "question": "What's a custom sports mouthguard going to cost?", "relevant": ["faq-mouthguard"] },
+    { "id": "q-periodontal-bleeding", "question": "My gums bleed every time I brush. Is that a problem?", "relevant": ["faq-periodontal"] },
+    { "id": "q-periodontal-deep", "question": "What is a deep clean and how is it different to a normal one?", "relevant": ["faq-periodontal"] },
+    { "id": "q-periodontal-breath", "question": "I get bad breath even though I brush. Could it be my gums?", "relevant": ["faq-periodontal"] },
+    { "id": "q-periodontal-specialist", "question": "My gums are receding. Do I need a periodontist?", "relevant": ["faq-periodontal"] },
+    { "id": "q-sensitivity-cause", "question": "Why does my tooth hurt when I drink something cold?", "relevant": ["faq-sensitivity"] },
+    { "id": "q-sensitivity-toothpaste", "question": "Does that sensitivity toothpaste you mentioned actually work?", "relevant": ["faq-sensitivity"] },
+    { "id": "q-sensitivity-crack", "question": "Will sensitivity go away on its own or do I need treatment?", "relevant": ["faq-sensitivity"] },
+    { "id": "q-hygiene-brush", "question": "How often should I brush my teeth?", "relevant": ["faq-hygiene"] },
+    { "id": "q-hygiene-floss", "question": "Do I really need to floss every day?", "relevant": ["faq-hygiene"] },
+    { "id": "q-hygiene-brush-replace", "question": "How often should I change my toothbrush?", "relevant": ["faq-hygiene"] },
+    { "id": "q-hygiene-two-min", "question": "How long should I brush for?", "relevant": ["faq-hygiene"] },
+    { "id": "q-diet-sugar", "question": "Is it the amount of sugar I eat or how often?", "relevant": ["faq-diet"] },
+    { "id": "q-diet-snacking", "question": "I drink fizzy drinks all day. Is that bad for my teeth?", "relevant": ["faq-diet"] },
+    { "id": "q-diet-water", "question": "What should I drink between meals?", "relevant": ["faq-diet"] },
+    { "id": "q-diet-tobacco", "question": "Does smoking affect my gums?", "relevant": ["faq-diet", "faq-periodontal"] },
+    { "id": "q-anxiety-book", "question": "I'm terrified of dentists. Can I tell you when I book?", "relevant": ["faq-anxiety"] },
+    { "id": "q-anxiety-longer", "question": "Can I have a longer appointment because I'm anxious?", "relevant": ["faq-anxiety"] },
+    { "id": "q-anxiety-signal", "question": "Is there a way to signal that I want you to stop?", "relevant": ["faq-anxiety"] },
+    { "id": "q-anxiety-first-visit", "relevant": ["faq-anxiety"], "question": "Can my first appointment just be a chat with no treatment?" },
+    { "id": "q-sedation-nitrous", "question": "Do you offer laughing gas?", "relevant": ["faq-sedation"] },
+    { "id": "q-sedation-drive", "question": "Can I drive home after being sedated?", "relevant": ["faq-sedation"] },
+    { "id": "q-sedation-local", "question": "Will you numb me before treatment?", "relevant": ["faq-sedation"] },
+    { "id": "q-sedation-iv", "question": "What does IV sedation involve?", "relevant": ["faq-sedation"] },
+    { "id": "q-financing-plan", "question": "Can I pay for treatment in instalments?", "relevant": ["faq-financing"] },
+    { "id": "q-financing-interest", "question": "Is there interest on the payment plan?", "relevant": ["faq-financing"] },
+    { "id": "q-financing-check", "question": "Do I need a credit check to set up a plan?", "relevant": ["faq-financing"] },
+    { "id": "q-financing-payoff", "question": "Is there a fee if I pay the plan off early?", "relevant": ["faq-financing"] },
+    { "id": "q-billing-statement", "question": "Will I get an itemised bill?", "relevant": ["faq-billing"] },
+    { "id": "q-billing-wrong", "question": "I think I was charged for something I didn't have. What do I do?", "relevant": ["faq-billing"] },
+    { "id": "q-billing-window", "question": "How long do I have to query a charge?", "relevant": ["faq-billing"] },
+    { "id": "q-billing-refund-time", "question": "How long does a refund take to arrive?", "relevant": ["faq-billing"] },
+    { "id": "q-language-spanish", "question": "Do you speak Spanish?", "relevant": ["faq-language"] },
+    { "id": "q-language-interpreter", "question": "Can you get me an interpreter for my appointment?", "relevant": ["faq-language"] },
+    { "id": "q-language-french", "question": "Is there anyone who speaks French at the practice?", "relevant": ["faq-language"] },
+    { "id": "q-language-notice", "question": "How much notice do you need for an interpreter?", "relevant": ["faq-language"] },
+    { "id": "q-language-materials", "question": "Are your patient leaflets available in other languages?", "relevant": ["faq-language"] },
+    { "id": "q-walkin-emergency", "question": "Can I just turn up without an appointment?", "relevant": ["faq-walkin"] },
+    { "id": "q-walkin-sameday", "question": "I'm nearby and free now — can you squeeze me in today?", "relevant": ["faq-walkin"] },
+    { "id": "q-walkin-wait", "question": "How long would I have to wait as a walk-in?", "relevant": ["faq-walkin"] },
+    { "id": "q-telehealth-yes", "question": "Can I have an appointment over video?", "relevant": ["faq-telehealth"] },
+    { "id": "q-telehealth-purpose", "question": "What can actually be done in a video consultation?", "relevant": ["faq-telehealth"] },
+    { "id": "q-telehealth-postop", "question": "I had a filling three days ago and it's sore. Can I check in by video?", "relevant": ["faq-telehealth"] },
+    { "id": "q-forms-download", "question": "Can I fill in my new patient forms before I come in?", "relevant": ["faq-forms"] },
+    { "id": "q-forms-bring", "question": "What should I bring to my first appointment?", "relevant": ["faq-forms"] },
+    { "id": "q-forms-insurance-card", "question": "Do I need to bring my insurance card?", "relevant": ["faq-forms"] },
+    { "id": "q-prescription-refill", "question": "Can I get my antibiotics prescription refilled?", "relevant": ["faq-prescription"] },
+    { "id": "q-prescription-exam", "question": "Can I get antibiotics without coming in?", "relevant": ["faq-prescription"] },
+    { "id": "q-prescription-controlled", "question": "Can my sleeping tablet prescription be repeated?", "relevant": ["faq-prescription"] },
+    { "id": "q-allergy-latex", "question": "I'm allergic to latex. Do you use it?", "relevant": ["faq-allergy"] },
+    { "id": "q-allergy-antibiotic", "question": "I react to penicillin. Will you still treat me?", "relevant": ["faq-allergy"] },
+    { "id": "q-allergy-blood", "question": "I take blood thinners. Do you need to know?", "relevant": ["faq-allergy"] },
+    { "id": "q-allergy-letter", "question": "Do you need a letter from my doctor about my allergies?", "relevant": ["faq-allergy"] },
+    { "id": "q-pregnancy-safe", "question": "Is it safe to have dental work while I'm pregnant?", "relevant": ["faq-pregnancy"] },
+    { "id": "q-pregnancy-xray", "question": "Can I have an X-ray if I'm pregnant?", "relevant": ["faq-pregnancy", "faq-tech"] },
+    { "id": "q-pregnancy-trimester", "question": "Which stage of pregnancy is best for a dentist appointment?", "relevant": ["faq-pregnancy"] },
+    { "id": "q-pregnancy-tell", "question": "Do I have to mention if I've just found out I'm pregnant?", "relevant": ["faq-pregnancy"] },
+    { "id": "q-secondopinion-free", "question": "Can I get a second opinion on my treatment plan?", "relevant": ["faq-secondopinion"] },
+    { "id": "q-secondopinion-record", "question": "Will you send my X-rays to the other dentist?", "relevant": ["faq-secondopinion", "faq-records"] },
+    { "id": "q-secondopinion-explain", "question": "Can I have the plan explained in writing before I decide?", "relevant": ["faq-secondopinion"] },
+    { "id": "q-referral-family", "question": "Can I book my wife in for general treatment?", "relevant": ["faq-referral"] },
+    { "id": "q-referral-specialist", "question": "How do I get a referral for an oral surgeon?", "relevant": ["faq-referral"] },
+    { "id": "q-referral-urgent", "question": "I'm an existing patient in a lot of pain — can I just turn up?", "relevant": ["faq-referral", "faq-walkin"] },
+    { "id": "q-documents-photo", "question": "Can I email you a photo of the problem?", "relevant": ["faq-documents"] },
+    { "id": "q-documents-card", "question": "Is it safe to email my card details to you?", "relevant": ["faq-documents"] },
+    { "id": "q-documents-substitute", "question": "Will a photo be enough instead of coming in?", "relevant": ["faq-documents"] },
+    { "id": "q-abcess-pain", "question": "I've had a constant throbbing toothache for days with a bad taste. Is that an abscess?", "relevant": ["faq-abcess"] },
+    { "id": "q-abcess-abx", "question": "Will antibiotics fix a dental abscess on their own?", "relevant": ["faq-abcess"] },
+    { "id": "q-abcess-urgent", "question": "How quickly do I need to deal with an abscess?", "relevant": ["faq-abcess"] },
+    { "id": "q-knockedout-adult", "question": "I knocked my tooth out this morning. Can it be saved?", "relevant": ["faq-knockedout"] },
+    { "id": "q-knockedout-hold", "question": "Should I be holding the tooth by the root?", "relevant": ["faq-knockedout"] },
+    { "id": "q-knockedout-milk", "question": "I put the tooth in milk — was that right?", "relevant": ["faq-knockedout"] },
+    { "id": "q-knockedout-loose", "question": "One of my teeth feels loose after a knock. Do I need to come in?", "relevant": ["faq-knockedout"] },
+    { "id": "q-multi-insurance-cost", "question": "If you are out of network do you still take my insurance, and roughly what will I owe on the day?", "relevant": ["faq-insurance"] },
+    { "id": "q-multi-child-morning", "question": "My son needs his first cleaning and I want a calm early slot. Is that possible?", "relevant": ["faq-child", "faq-morning"] },
+    { "id": "q-multi-pain-slot", "question": "I am in a lot of pain and also need to reschedule my checkup — what should I do?", "relevant": ["faq-morning", "faq-reschedule"] },
+    { "id": "q-multi-whitening-consult", "question": "I want veneers and whitening — is that all covered in the free cosmetic consultation?", "relevant": ["faq-cosmetic", "faq-whitening"] },
+    { "id": "q-multi-xray-child", "question": "Does my child need X-rays at a first checkup, and is it safe?", "relevant": ["faq-cleaning", "faq-tech"] },
+    { "id": "q-multi-record-photo", "question": "I want my X-rays sent to another practice. Can I send you my photo ID instead of coming in?", "relevant": ["faq-records", "faq-privacy"] },
+    { "id": "q-multi-billing-plan", "question": "If a charge is wrong can I pay it off over months rather than getting a refund?", "relevant": ["faq-billing", "faq-financing"] },
+    { "id": "q-multi-implant-crown", "question": "If I get an implant, do I still need a crown on top?", "relevant": ["faq-implants", "faq-crowns"] },
+    { "id": "q-multi-rootcause-abcess", "question": "My face is swollen and I've been on antibiotics. Is this the same as an abscess?", "relevant": ["faq-abcess", "faq-emergency"] },
+    { "id": "q-multi-wisdom-cleaning", "question": "Do I need a cleaning before my wisdom teeth assessment?", "relevant": ["faq-wisdom", "faq-cleaning"] },
+    { "id": "q-multi-sensitivity-gum", "question": "My tooth is sensitive to cold and my gums are receding. Are those related?", "relevant": ["faq-sensitivity", "faq-periodontal"] },
+    { "id": "q-multi-anxiety-sedation", "question": "I'm anxious about the needle — is laughing gas an option instead?", "relevant": ["faq-anxiety", "faq-sedation"] },
+    { "id": "q-multi-nightguard-crown", "question": "If I grind my teeth, could that be why my crown keeps breaking?", "relevant": ["faq-nightguard", "faq-crowns"] },
+    { "id": "q-multi-interpreter-forms", "question": "I need a Spanish interpreter. Can I get the forms in Spanish too?", "relevant": ["faq-language", "faq-forms"] },
+    { "id": "q-multi-telehealth-postop", "question": "Can I check my surgical site by video rather than driving in?", "relevant": ["faq-telehealth", "faq-wisdom"] },
+    { "id": "q-multi-pregnancy-cleaning", "question": "I'm pregnant and due for a checkup — is it still worth coming?", "relevant": ["faq-pregnancy", "faq-cleaning"] },
+    { "id": "q-multi-knockedout-child", "question": "My child knocked out a baby tooth — do you save those too?", "relevant": ["faq-knockedout", "faq-child"] },
+    { "id": "q-multi-dentures-implants", "question": "Should I get dentures or implants to replace all my teeth?", "relevant": ["faq-dentures", "faq-implants"] },
+    { "id": "q-multi-sealants-cleaning", "question": "Can you put sealants on at the same time as a cleaning?", "relevant": ["faq-sealants", "faq-cleaning"] },
+    { "id": "q-multi-ortho-retainer", "question": "Do you fit retainers after braces finish?", "relevant": ["faq-ortho", "faq-crowns"] },
+    { "id": "n-lease", "question": "Do you rent office space to other businesses?", "relevant": [] },
+    { "id": "n-shipping", "question": "How much does it cost to ship a replacement night guard to Brazil?", "relevant": [] },
+    { "id": "n-loan", "question": "Can you recommend a mortgage lender for a practice loan?", "relevant": [] },
+    { "id": "n-mortgage", "question": "What are your interest rates on a dental loan?", "relevant": [] },
+    { "id": "n-house", "question": "Do you have any apartments for rent nearby?", "relevant": [] },
+    { "id": "n-driver", "question": "Can you recommend a good driving instructor?", "relevant": [] },
+    { "id": "n-school", "question": "Which primary school should I send my son to?", "relevant": [] },
+    { "id": "n-lawyer", "question": "Do you know a lawyer who handles medical malpractice?", "relevant": [] },
+    { "id": "n-visa", "question": "Can you sponsor a visa for your dental assistants?", "relevant": [] },
+    { "id": "n-hotel", "question": "Do you know a good hotel near the clinic?", "relevant": [] },
+    { "id": "n-flight", "question": "Which airline flies direct to Riverton?", "relevant": [] },
+    { "id": "n-grocery", "question": "Do you sell toothbrushes in the reception area?", "relevant": [] },
+    { "id": "n-taxi", "question": "Is there a taxi rank outside your building?", "relevant": [] },
+    { "id": "n-bus", "question": "Which bus stop is closest to you?", "relevant": [] },
+    { "id": "n-pharmacy", "question": "Is there a pharmacy I can use for my prescription?", "relevant": [] },
+    { "id": "n-photography", "question": "Can I book a photographer for my wedding at the clinic?", "relevant": [] },
+    { "id": "n-massage", "question": "Do you have a masseuse on site for neck pain?", "relevant": [] },
+    { "id": "n-optician", "question": "Do you sell glasses as well?", "relevant": [] },
+    { "id": "n-vet", "question": "Do you treat pets?", "relevant": [] },
+    { "id": "n-hair", "question": "Do you do haircuts?", "relevant": [] },
+    { "id": "n-itjob", "question": "Do you know anyone hiring frontend developers right now?", "relevant": [] },
+    { "id": "n-charity", "question": "Can I donate unused toothbrushes to you for a charity?", "relevant": [] },
+    { "id": "n-invoice", "question": "Can you invoice my employer directly for the dental work?", "relevant": [] },
+    { "id": "n-passport", "question": "Do you take passport photos here?", "relevant": [] },
+    { "id": "n-room", "question": "Is there a parent room where I can wait with my children?", "relevant": [] },
+    { "id": "n-camping", "question": "Do you have camping facilities for patients travelling from abroad?", "relevant": [] }
   ]
 }
