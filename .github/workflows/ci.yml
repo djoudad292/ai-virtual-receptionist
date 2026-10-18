@@ -23,6 +23,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - name: Retrieval goldset benchmark
+        run: npm run eval
 
   frontend:
     name: Frontend (build)
