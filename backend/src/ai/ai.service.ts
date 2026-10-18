@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { StoreService, StoreChunkHit } from '../common/store.service';
 import { wallClockToInstant } from '../common/availability';
 import { MailService } from '../common/mail.service';
+import { GEMINI_DEFAULT_MODEL, GEMINI_NATIVE_URL } from './gemini-endpoint';
 import {
   RECEPTIONIST_TOOLS,
   ToolDefinition,
@@ -476,7 +477,7 @@ export class AIService {
   }
 
   private geminiModel(): string {
-    return process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    return GEMINI_DEFAULT_MODEL;
   }
 
   /** Normalize OpenAI-shaped and Gemini-shaped usage payloads. */
@@ -599,7 +600,7 @@ export class AIService {
     try {
       const res = await this.withTimeout(
         fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel()}:generateContent?key=${key}`,
+          GEMINI_NATIVE_URL(this.geminiModel(), key),
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -608,6 +609,7 @@ export class AIService {
               generationConfig: {
                 maxOutputTokens: maxTokens,
                 temperature: 0.5,
+                thinkingConfig: { thinkingBudget: 0 },
               },
             }),
           },
@@ -786,7 +788,7 @@ export class AIService {
     try {
       const res = await this.withTimeout(
         fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel()}:generateContent?key=${key}`,
+          GEMINI_NATIVE_URL(this.geminiModel(), key),
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -796,6 +798,7 @@ export class AIService {
               generationConfig: {
                 maxOutputTokens: maxTokens,
                 temperature: 0.5,
+                thinkingConfig: { thinkingBudget: 0 },
               },
             }),
           },
