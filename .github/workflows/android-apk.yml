@@ -30,8 +30,7 @@ jobs:
           cmdline-tools-version: 11076708
           accept-android-sdk-licenses: true
       - name: Accept licenses
-        working-directory: mobile
-        run: yes | sdkmanager --licenses || true
+        run: yes | sdkmanager --licenses >/dev/null 2>&1 || true
       - name: Install dependencies
         working-directory: mobile
         run: npm ci
