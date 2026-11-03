@@ -29,13 +29,7 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           log-accepted-android-sdk-licenses: true
-      - name: Accept licenses
-        run: |
-          yes | sdkmanager --licenses || true
-          yes | sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" || true
-      - name: Install dependencies
-        working-directory: mobile
-        run: npm ci
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Generate native Android project
         working-directory: mobile
         run: npx expo prebuild --platform android --no-install --non-interactive
