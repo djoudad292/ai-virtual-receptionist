@@ -61,6 +61,12 @@ export default function LandingPage() {
                 Try it now — no signup
               </Link>
               <Link
+                href="/login"
+                className="border border-border px-4 py-2.5 text-sm font-semibold text-fg-secondary transition-colors hover:border-border-strong hover:text-fg"
+              >
+                Sign in
+              </Link>
+              <Link
                 href="/register"
                 className="border border-border px-4 py-2.5 text-sm font-semibold text-fg-secondary transition-colors hover:border-border-strong hover:text-fg"
               >
@@ -185,6 +191,12 @@ export default function LandingPage() {
                 className="bg-primary px-5 py-2.5 text-sm font-semibold text-primary-fg transition-colors hover:bg-primary-strong"
               >
                 Try it now — no signup
+              </Link>
+              <Link
+                href="/login"
+                className="border border-border px-4 py-2.5 text-sm font-semibold text-fg-secondary transition-colors hover:border-border-strong hover:text-fg"
+              >
+                Sign in
               </Link>
               <Link
                 href="/register"

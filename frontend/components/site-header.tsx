@@ -27,7 +27,7 @@ export function SiteHeader({ withSectionLinks = false }: { withSectionLinks?: bo
           <Link href="/login" className="text-fg-muted transition-colors hover:text-fg">
             Sign in
           </Link>
-          <Link href="/register" className="hidden border border-border px-3 py-1.5 font-medium transition-colors hover:border-border-strong sm:inline-block">
+          <Link href="/register" className="border border-border px-3 py-1.5 font-medium transition-colors hover:border-border-strong">
             Create account
           </Link>
           <Link
