@@ -32,7 +32,7 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Generate native Android project
         working-directory: mobile
-        run: CI=1 npx --yes expo prebuild --platform android --no-install 2>&1 | tail -40
+        run: CI=1 npx --yes expo@54 prebuild --platform android --no-install --clean 2>&1 | tail -60
       - name: Build release APK
         working-directory: mobile/android
         run: ./gradlew assembleRelease
