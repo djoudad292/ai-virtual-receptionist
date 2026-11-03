@@ -25,12 +25,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: 11076708
-          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: true
       - name: Accept licenses
-        run: yes | sdkmanager --licenses >/dev/null 2>&1 || true
+        run: |
+          yes | sdkmanager --licenses || true
+          yes | sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" || true
       - name: Install dependencies
         working-directory: mobile
         run: npm ci
