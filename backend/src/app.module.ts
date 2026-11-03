@@ -20,6 +20,7 @@ import { DemoModule } from './demo/demo.module';
 import { AnalyticsController } from './analytics/analytics.controller';
 import { MetricsController } from './metrics/metrics.controller';
 import { HealthController } from './health/health.controller';
+import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { HealthController } from './health/health.controller';
     RealtimeModule,
     WidgetModule,
     DemoModule,
+    ObservabilityModule,
   ],
   controllers: [HealthController, AnalyticsController, MetricsController],
   providers: [

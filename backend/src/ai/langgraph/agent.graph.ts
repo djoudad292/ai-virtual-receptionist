@@ -8,6 +8,7 @@ import { GraphTraceStep, MAX_TRACE_STEPS, MAX_TRACE_STRING } from './trace.types
 import { StoreService } from '../../common/store.service';
 import { MailService } from '../../common/mail.service';
 import { AIService } from '../ai.service';
+import { buildTraceConfig } from '../../observability/trace-context';
 
 export interface Source {
   chunkText: string;
@@ -265,9 +266,13 @@ export async function runReceptionistGraph(params: {
   messages.push(new HumanMessage(userMessage));
 
   const threadId = conversationId || `company-${companyId}`;
+  // Langfuse traces the whole graph run: every node, every model call and every
+  // tool call become nested spans. Spreading an empty object when tracing is
+  // off keeps this call site unchanged in behaviour.
+  const traceConfig = buildTraceConfig({ conversationId, companyId, runName: 'receptionist-agent' });
   const result = await compiledGraph.invoke(
     { messages },
-    { configurable: { thread_id: threadId } },
+    { configurable: { thread_id: threadId }, ...traceConfig },
   );
 
   const lastAiMessage = [...result.messages]

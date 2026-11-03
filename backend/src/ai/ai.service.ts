@@ -25,6 +25,7 @@ import {
   markHashVector,
 } from './embeddings.service';
 import type { GraphTraceStep } from './langgraph/trace.types';
+import { traceGeneration, traceEmbedding } from '../observability/generation-span';
 
 const EMBEDDING_DIM = 1536;
 const DEFAULT_DEPARTMENTS = [
@@ -140,23 +141,39 @@ export class AIService {
   }
 
   private async embedOpenAI(text: string): Promise<number[]> {
-    const res = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
+    return traceEmbedding(
+      {
+        name: 'openai_embeddings',
         model: embeddingModel(),
-        input: text.replace(/\n/g, ' ').slice(0, 8000),
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`OpenAI embedding HTTP ${res.status}: ${body.slice(0, 150)}`);
-    }
-    const json: any = await res.json();
-    return json.data?.[0]?.embedding;
+        input: { length: text.length },
+        feature: 'embeddings',
+        companyId: null,
+        // The result is a 1536-float vector; recording it verbatim would ship
+        // thousands of numbers per call for no diagnostic value.
+        summarizeOutput: (result: unknown) => ({
+          dimensions: Array.isArray(result) ? result.length : null,
+        }),
+      },
+      async () => {
+        const res = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: embeddingModel(),
+            input: text.replace(/\n/g, ' ').slice(0, 8000),
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`OpenAI embedding HTTP ${res.status}: ${body.slice(0, 150)}`);
+        }
+        const json: any = await res.json();
+        return json.data?.[0]?.embedding;
+      },
+    );
   }
 
   private embedLocally(text: string): number[] {
@@ -499,26 +516,37 @@ export class AIService {
     if (!apiKey) return this.chatGemini(messages, maxTokens, feature, companyId);
 
     const doFetch = async (): Promise<any> => {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': process.env.APP_URL || '',
-          'X-Title': 'AI Virtual Receptionist',
-        },
-        body: JSON.stringify({
+      return traceGeneration(
+        {
+          name: 'openrouter_chat_completion',
           model: this.openRouterModel(),
-          messages,
-          max_tokens: maxTokens,
-          temperature: 0.5,
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.text();
-        throw new Error(`OpenRouter HTTP ${res.status}: ${errBody.slice(0, 200)}`);
-      }
-      return res.json();
+          input: { messageCount: messages.length },
+          feature,
+          companyId,
+        },
+        async () => {
+          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+              'HTTP-Referer': process.env.APP_URL || '',
+              'X-Title': 'AI Virtual Receptionist',
+            },
+            body: JSON.stringify({
+              model: this.openRouterModel(),
+              messages,
+              max_tokens: maxTokens,
+              temperature: 0.5,
+            }),
+          });
+          if (!res.ok) {
+            const errBody = await res.text();
+            throw new Error(`OpenRouter HTTP ${res.status}: ${errBody.slice(0, 200)}`);
+          }
+          return res.json();
+        },
+      );
     };
 
     // Retry transient provider errors (rate limits, 503 "request queue is full", 5xx) with backoff.
@@ -598,39 +626,42 @@ export class AIService {
 
     const startedAt = Date.now();
     try {
-      const res = await this.withTimeout(
-        fetch(
-          GEMINI_NATIVE_URL(this.geminiModel(), key),
+      const tracedFetch = async () => {
+        return traceGeneration(
           {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents,
-              generationConfig: {
-                maxOutputTokens: maxTokens,
-                temperature: 0.5,
-                thinkingConfig: { thinkingBudget: 0 },
-              },
-            }),
+            name: 'gemini_generate_content',
+            model: this.geminiModel(),
+            input: { messageCount: messages.length },
+            feature,
+            companyId,
           },
-        ),
-        30000,
-      );
-      if (!res.ok) {
-        const detail = `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
-        this.logger.error(detail);
-        this.recordLlmUsage({
-          companyId,
-          provider: 'gemini',
-          model: this.geminiModel(),
-          feature,
-          latencyMs: Date.now() - startedAt,
-          success: false,
-          error: detail,
-        });
-        return null;
-      }
-      const json: any = await res.json();
+          async () => {
+            const res = await fetch(
+              GEMINI_NATIVE_URL(this.geminiModel(), key),
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents,
+                  generationConfig: {
+                    maxOutputTokens: maxTokens,
+                    temperature: 0.5,
+                    thinkingConfig: { thinkingBudget: 0 },
+                  },
+                }),
+              },
+            );
+            if (!res.ok) {
+              const detail = `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
+              throw new Error(detail);
+            }
+            return res.json();
+          },
+        );
+      };
+
+      const json: any = await this.withTimeout(tracedFetch(), 30000);
+
       this.recordLlmUsage({
         companyId,
         provider: 'gemini',
@@ -690,27 +721,38 @@ export class AIService {
     if (!apiKey) throw new Error('OPENROUTER_API_KEY not set');
 
     const doFetch = async (): Promise<any> => {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-          'HTTP-Referer': process.env.APP_URL || '',
-          'X-Title': 'AI Virtual Receptionist',
-        },
-        body: JSON.stringify({
+      return traceGeneration(
+        {
+          name: 'openrouter_chat_completion_with_tools',
           model: this.openRouterModel(),
-          messages,
-          tools: openAiTools(tools),
-          max_tokens: maxTokens,
-          temperature: 0.5,
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.text();
-        throw new Error(`OpenRouter HTTP ${res.status}: ${errBody.slice(0, 200)}`);
-      }
-      return res.json();
+          input: { messageCount: messages.length, toolCount: tools.length },
+          feature,
+          companyId,
+        },
+        async () => {
+          const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+              'HTTP-Referer': process.env.APP_URL || '',
+              'X-Title': 'AI Virtual Receptionist',
+            },
+            body: JSON.stringify({
+              model: this.openRouterModel(),
+              messages,
+              tools: openAiTools(tools),
+              max_tokens: maxTokens,
+              temperature: 0.5,
+            }),
+          });
+          if (!res.ok) {
+            const errBody = await res.text();
+            throw new Error(`OpenRouter HTTP ${res.status}: ${errBody.slice(0, 200)}`);
+          }
+          return res.json();
+        },
+      );
     };
 
     const maxRetries = 3;
@@ -786,40 +828,43 @@ export class AIService {
 
     const startedAt = Date.now();
     try {
-      const res = await this.withTimeout(
-        fetch(
-          GEMINI_NATIVE_URL(this.geminiModel(), key),
+      const tracedFetch = async () => {
+        return traceGeneration(
           {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: toGeminiContents(messages),
-              tools: geminiTools(tools),
-              generationConfig: {
-                maxOutputTokens: maxTokens,
-                temperature: 0.5,
-                thinkingConfig: { thinkingBudget: 0 },
-              },
-            }),
+            name: 'gemini_generate_content_with_tools',
+            model: this.geminiModel(),
+            input: { messageCount: messages.length, toolCount: tools.length },
+            feature,
+            companyId,
           },
-        ),
-        30000,
-      );
-      if (!res.ok) {
-        const detail = `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
-        this.logger.error(detail);
-        this.recordLlmUsage({
-          companyId,
-          provider: 'gemini',
-          model: this.geminiModel(),
-          feature,
-          latencyMs: Date.now() - startedAt,
-          success: false,
-          error: detail,
-        });
-        return { content: null, toolCalls: [] };
-      }
-      const json: any = await res.json();
+          async () => {
+            const res = await fetch(
+              GEMINI_NATIVE_URL(this.geminiModel(), key),
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: toGeminiContents(messages),
+                  tools: geminiTools(tools),
+                  generationConfig: {
+                    maxOutputTokens: maxTokens,
+                    temperature: 0.5,
+                    thinkingConfig: { thinkingBudget: 0 },
+                  },
+                }),
+              },
+            );
+            if (!res.ok) {
+              const detail = `Gemini HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
+              throw new Error(detail);
+            }
+            return res.json();
+          },
+        );
+      };
+
+      const json: any = await this.withTimeout(tracedFetch(), 30000);
+
       this.recordLlmUsage({
         companyId,
         provider: 'gemini',

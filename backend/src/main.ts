@@ -11,6 +11,7 @@ import { AllExceptionsFilter } from './common/exception.filter';
 import { DatabaseService } from './common/database.service';
 import { StoreService } from './common/store.service';
 import { AIService } from './ai/ai.service';
+import { initTracing } from './observability/observability.module';
 
 let appPromise: Promise<NestExpressApplication> | null = null;
 
@@ -20,6 +21,12 @@ async function buildApp(): Promise<NestExpressApplication> {
   });
   app.useLogger(app.get(PinoLogger));
   const logger = new Logger('Bootstrap');
+
+  // Langfuse must be initialised before the first agent run so the global OTel
+  // provider is in place. Fail-open: a bad key disables tracing, not the server.
+  initTracing(logger);
+  // Required for ObservabilityModule.onApplicationShutdown to run on SIGTERM.
+  app.enableShutdownHooks();
 
   // Serve the embeddable chat widget: GET /widget.js
   // Output layout differs: nested under dist/src when api/ is compiled alongside.
