@@ -301,4 +301,4 @@ one false negative).
 
 ---
 
-Built by [djaouad frih](https://djaouad.tech) — [djaouad.tech](https://djaouad.tech)
+Built by [djaouad frih](https://djaouad.is-a.dev) — [djaouad.is-a.dev](https://djaouad.is-a.dev)
