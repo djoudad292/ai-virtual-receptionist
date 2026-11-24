@@ -303,7 +303,7 @@
     /* footer */
     var footer = document.createElement('div');
     footer.className = 'ai-footer';
-    footer.innerHTML = 'Demo by <a href="https://djaouad.is-a.dev" target="_blank">djaouad.tech</a> &mdash; Developer <a href="https://djaouad.is-a.dev" target="_blank" style="font-weight:600">djaouad frih</a>';
+    footer.innerHTML = 'Demo by <a href="https://djaouad.is-a.dev" target="_blank">djaouad.is-a.dev</a> &mdash; Developer <a href="https://djaouad.is-a.dev" target="_blank" style="font-weight:600">djaouad frih</a>';
     panel.appendChild(footer);
 
     /* input */
